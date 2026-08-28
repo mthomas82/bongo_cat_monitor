@@ -46,6 +46,26 @@ class PortDetectTests(unittest.TestCase):
     def test_empty(self):
         self.assertIsNone(select_port([]))
 
+    def test_linux_ttyusb(self):
+        p = PortInfo(device="/dev/ttyUSB0", vid=0x1A86, description="USB Serial")
+        self.assertTrue(is_likely_esp32(p))
+
+    def test_linux_ttyacm(self):
+        p = PortInfo(device="/dev/ttyACM0", description="Espressif")
+        self.assertTrue(is_likely_esp32(p))
+
+    def test_linux_ignores_onboard_ttys(self):
+        ports = [
+            PortInfo(device="/dev/ttyS0", description="16550A"),
+            PortInfo(device="/dev/ttyUSB0", vid=0x10C4, manufacturer="Silicon Labs"),
+        ]
+        chosen = select_port(ports)
+        self.assertIsNotNone(chosen)
+        self.assertEqual(chosen.device, "/dev/ttyUSB0")
+
+    def test_linux_ttyS0_alone_is_not_esp32(self):
+        self.assertFalse(is_likely_esp32(PortInfo(device="/dev/ttyS0", description="16550A")))
+
 
 if __name__ == "__main__":
     unittest.main()

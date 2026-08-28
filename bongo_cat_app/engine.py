@@ -247,7 +247,11 @@ class BongoCatEngine:
                 return True
                 
             except Exception as e:
-                print(f"❌ Connection failed: {e}")
+                print(f"Connection failed: {e}")
+                if platform.system() == "Linux":
+                    from linux_permissions import SERIAL_HELP, looks_like_permission_error
+                    if looks_like_permission_error(e):
+                        print(SERIAL_HELP)
                 if attempt < retries - 1:
                     continue
                 # Update tray connection status on failure
@@ -779,6 +783,12 @@ class BongoCatEngine:
             if not warn_if_untrusted():
                 print("Serial is connected, but keystrokes will not be seen until")
                 print("Accessibility is granted and this process is relaunched.")
+        elif platform.system() == "Linux":
+            import os
+            if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+                print("No graphical display — pynput will not see keys.")
+                print("Spoof typing onto the CYD with:")
+                print("  python3 tools/cyd_testbench.py --demo")
         try:
             with keyboard.Listener(on_press=self.on_key_press) as listener:
                 listener.join()
@@ -789,6 +799,9 @@ class BongoCatEngine:
             if platform.system() == "Darwin":
                 from macos_permissions import PERMISSION_HELP
                 print(PERMISSION_HELP)
+            elif platform.system() == "Linux":
+                from linux_permissions import SERIAL_HELP
+                print(SERIAL_HELP)
             raise
         
         return True

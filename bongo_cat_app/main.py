@@ -165,7 +165,7 @@ def main():
     parser.add_argument("--port", default=None,
                        help="Serial device (e.g. /dev/cu.usbserial-0001). Default: auto")
     parser.add_argument("--no-tray", action="store_true",
-                       help="Skip system tray (recommended for first Mac test)")
+                       help="Skip system tray (recommended for first Mac/Linux test)")
     
     args = parser.parse_args()
     
