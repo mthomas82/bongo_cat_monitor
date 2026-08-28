@@ -53,14 +53,31 @@ This board includes:
 2. Install required libraries (see Configuration section)
 3. Select your ESP32 board and upload
 
-### Desktop Application Setup
+## Desktop Application Setup
 
-#### 🍎 For Mac Users
-1. **Download** the Mac DMG file from [GitHub Releases](https://github.com/vostoklabs/bongo_cat_monitor/releases)
-2. **Follow** our detailed [Mac Installation Guide](bongo-cat-electron/MAC_USER_GUIDE.md)
-3. **Enjoy** your Bongo Cat with native Mac integration!
+### Mac (use this, not the old DMG)
 
-#### 🪟 For Windows Users  
+The Electron DMG is not reliable on recent macOS. See **MAC.md**.
+
+Short version:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r bongo_cat_app/requirements_app.txt
+python3 tools/serial_smoke.py
+python3 bongo_cat_app/main.py --no-tray
+```
+
+Grant Accessibility + Input Monitoring to Terminal, then relaunch.
+
+Native menu-bar app (Rust + Swift), if you have Xcode CLT and Rust:
+
+```bash
+cd bongo-cat-macos && make && make run
+```
+
+### Windows  
 1. **Download** the PC application archive: `BongoCat_v1.0.0_Windows.zip`
 2. **Extract** the ZIP file to a temporary folder
 3. **Run** `BongoCat_Setup.exe` from the extracted files
