@@ -75,7 +75,6 @@ Pixel editor for the 64×64 layered cat sprites and a real-size 240×320 layout 
 
 ```bash
 python3 tools/sprite_studio.py
-# http://127.0.0.1:8765/
 ```
 
 Full usage guide: **[tools/sprite_studio/README.md](tools/sprite_studio/README.md)**
