@@ -100,6 +100,28 @@ cd bongo-cat-macos && make && make run
 6. **Check system tray** - the app runs in the background
 7. **Right-click tray icon** to access settings and configure display options
 
+#### Linux / Mac (Python host)
+
+See **[LINUX.md](LINUX.md)** and **[MAC.md](MAC.md)** for the Python host, serial setup, and sprite-editor start/stop from the tray.
+
+### Sprite Studio (edit cat art + screen layout)
+
+Pixel editor for the 64×64 layered cat sprites and a real-size 240×320 layout preview.
+It does **not** start on clone or when the typing app launches.
+
+From the desktop host (omit `--no-tray`):
+
+- Tray → **Sprite editor** → Start / Stop / Open in browser
+- Settings → **Sprite editor**
+
+Or from a terminal:
+
+```bash
+python3 tools/sprite_studio.py --no-browser
+```
+
+Full usage guide: **[tools/sprite_studio/README.md](tools/sprite_studio/README.md)** · Linux/Mac host notes: **[LINUX.md](LINUX.md)**, **[MAC.md](MAC.md)**
+
 ## 📁 Project Structure
 
 ```
@@ -113,8 +135,9 @@ cd bongo-cat-macos && make && make run
 ├── 📁 bongo_cat_app/          # Desktop companion application (Windows)
 │   ├── 📄 main.py             # Application entry point
 │   ├── 📄 engine.py           # Core logic and serial communication
-│   ├── 📄 gui.py              # Settings GUI
-│   ├── 📄 tray.py             # System tray functionality
+│   ├── 📄 gui.py              # Settings GUI (Sprite editor tab)
+│   ├── 📄 tray.py             # System tray (Sprite editor start/stop)
+│   ├── 📄 sprite_studio_ctl.py # Start/stop the pixel editor
 │   ├── 📄 config.py           # Configuration management
 │   └── 📄 requirements_app.txt
 ├── 📁 bongo-cat-electron/     # 🆕 Cross-platform Electron app (Mac & Windows)
@@ -123,6 +146,9 @@ cd bongo-cat-macos && make && make run
 │   ├── 📁 renderer/           # UI components
 │   ├── 📁 src/                # Core functionality modules
 │   └── 📄 package.json        # Dependencies and build configuration
+├── 📁 tools/                  # Host helpers + sprite studio
+│   ├── 📄 sprite_studio.py    # Browser pixel editor (port 8765)
+│   └── 📁 sprite_studio/      # Editor UI + usage guide
 ├── 📁 BongoCat_Release/       # Windows installer package
 │   ├── 📄 BongoCat_Setup.exe  # Ready-to-install executable
 │   ├── 📄 README.md           # Installation instructions
@@ -141,6 +167,8 @@ cd bongo-cat-macos && make && make run
 ├── 📄 User_Setup.h           # TFT_eSPI library configuration
 ├── 📄 Free_Fonts.h           # Font definitions
 ├── 📄 manifest.json          # Web flasher configuration
+├── 📄 LINUX.md               # Linux Python host + sprite editor
+├── 📄 MAC.md                 # Mac Python host + sprite editor
 └── 📄 LICENSE.txt            # MIT License
 ```
 
