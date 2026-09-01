@@ -15,10 +15,11 @@ from typing import Optional, Callable
 class BongoCatSystemTray:
     """System tray integration for Bongo Cat application"""
     
-    def __init__(self, config_manager=None, engine=None, on_exit_callback: Optional[Callable] = None):
+    def __init__(self, config_manager=None, engine=None, on_exit_callback: Optional[Callable] = None, studio=None):
         """Initialize system tray"""
         self.config = config_manager
         self.engine = engine
+        self.studio = studio
         self.on_exit_callback = on_exit_callback
         
         self.icon = None
@@ -181,6 +182,32 @@ class BongoCatSystemTray:
                 )
             ),
 
+            item(
+                "Sprite editor",
+                pystray.Menu(
+                    item(
+                        self.get_sprite_studio_status,
+                        None,
+                        enabled=False,
+                    ),
+                    pystray.Menu.SEPARATOR,
+                    item(
+                        "Start",
+                        self.start_sprite_studio,
+                        enabled=lambda item: not self.sprite_studio_running(),
+                    ),
+                    item(
+                        "Stop",
+                        self.stop_sprite_studio,
+                        enabled=lambda item: self.sprite_studio_running(),
+                    ),
+                    item(
+                        "Open in browser",
+                        self.open_sprite_studio,
+                        enabled=lambda item: self.sprite_studio_running(),
+                    ),
+                ),
+            ),
             pystray.Menu.SEPARATOR,
             item(
                 "Start with Windows",
@@ -256,7 +283,8 @@ class BongoCatSystemTray:
                             config_manager=self.config,
                             engine=self.engine,
                             on_close_callback=self.on_settings_closed,
-                            parent_root=settings_root
+                            parent_root=settings_root,
+                            studio=self._studio(),
                         )
                     
                     print("📱 Showing settings window...")
@@ -311,6 +339,46 @@ class BongoCatSystemTray:
             self.engine.disconnect_serial()
             self.update_connection_status("disconnected")
             self.show_notification("Bongo Cat", "Disconnected from ESP32")
+
+    def _studio(self):
+        if self.studio is None:
+            from sprite_studio_ctl import SpriteStudioController
+            self.studio = SpriteStudioController()
+        return self.studio
+
+    def sprite_studio_running(self, item=None):
+        return self._studio().is_running()
+
+    def get_sprite_studio_status(self, item=None):
+        studio = self._studio()
+        if studio.is_running():
+            return f"[✓] Running (port {studio.port})"
+        return "[✗] Stopped"
+
+    def start_sprite_studio(self, item=None):
+        result = self._studio().start()
+        self.refresh_menu()
+        if result.get("ok"):
+            self.open_sprite_studio()
+            self.show_notification("Sprite editor", "Started")
+        else:
+            self.show_notification("Sprite editor", result.get("error") or "Failed to start")
+
+    def stop_sprite_studio(self, item=None):
+        result = self._studio().stop()
+        self.refresh_menu()
+        if result.get("ok"):
+            self.show_notification("Sprite editor", "Stopped")
+        else:
+            self.show_notification("Sprite editor", result.get("error") or "Failed to stop")
+
+    def open_sprite_studio(self, item=None):
+        import webbrowser
+        studio = self._studio()
+        if not studio.is_running():
+            self.show_notification("Sprite editor", "Start the editor first")
+            return
+        webbrowser.open(studio.local_url())
     
     def toggle_startup(self, item=None):
         """Toggle startup with Windows setting"""

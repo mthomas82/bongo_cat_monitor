@@ -6,8 +6,9 @@ The companion Windows application that monitors your typing and system stats, th
 
 - **`main.py`** - Application entry point and startup logic
 - **`engine.py`** - Core functionality (keyboard monitoring, system stats, serial communication)
-- **`gui.py`** - Settings interface using Tkinter
-- **`tray.py`** - System tray integration and menu
+- **`gui.py`** - Settings interface using Tkinter (includes Sprite editor tab)
+- **`tray.py`** - System tray integration and menu (includes Sprite editor)
+- **`sprite_studio_ctl.py`** - Start/stop the browser sprite editor (port 8765)
 - **`config.py`** - Configuration management and persistence
 - **`default_config.json`** - Default application settings
 
@@ -26,6 +27,7 @@ The companion Windows application that monitors your typing and system stats, th
 ### 🎛️ User Interface
 - **System Tray Operation** - Runs quietly in background
 - **Settings GUI** - Easy configuration of display options
+- **Sprite editor** - Tray and Settings can start, stop, and open the pixel editor (does not auto-start)
 - **Visual Feedback** - Shows connection status and activity
 
 ## 🚀 Setup Instructions
@@ -46,6 +48,21 @@ Required packages:
 cd bongo_cat_app
 python main.py
 ```
+
+Omit `--no-tray` if you want the Sprite editor menu. `--no-tray` is keyboard + serial only.
+
+### Sprite editor (start / stop)
+
+The pixel editor is a separate process (`tools/sprite_studio.py`). Cloning or
+launching this app does **not** start it.
+
+From the tray: **Sprite editor → Start / Stop / Open in browser**.
+From Settings: **Sprite editor** tab, same buttons.
+
+Start listens on port 8765. Stop kills the listener on that port. Closing this
+app does not stop the editor.
+
+Full guide: `../tools/sprite_studio/README.md`
 
 ### Building Executable
 The project includes PyInstaller configuration for creating a standalone executable:
@@ -116,6 +133,7 @@ The app sends commands to ESP32 via serial at 115200 baud:
 - `ConfigManager` - Settings management
 - `SystemTray` - Tray icon and menu
 - `SettingsGUI` - Configuration interface
+- `SpriteStudioController` - Start/stop the sprite editor process
 
 ### Adding Features
 1. **Extend the engine** - Add new monitoring capabilities

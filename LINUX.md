@@ -46,3 +46,23 @@ If serial_smoke sees no port
   ls -l /dev/ttyUSB* /dev/ttyACM*
   try another cable
   pass --port explicitly
+
+------------------------------------------------------------------------
+Sprite studio (new cat art + screen layout)
+
+Does not start with the desktop host and is not started by cloning GitHub.
+
+With the tray (omit --no-tray):
+
+  python3 bongo_cat_app/main.py
+  # tray → Sprite editor → Start / Stop / Open in browser
+  # or Settings → Sprite editor
+
+Stop from the app kills whatever is on port 8765. Quitting the typing host
+does not stop the editor.
+
+From a terminal instead:
+
+  python3 tools/sprite_studio.py --no-browser
+
+Details: tools/sprite_studio/README.md

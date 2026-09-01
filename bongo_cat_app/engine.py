@@ -64,6 +64,7 @@ class BongoCatEngine:
         self.typing_active = False
         self.idle_start_time = current_time  # Initialize to current time so sleep detection works immediately
         self.sleep_start_time = None  # Track when we entered sleep mode
+        self.excitement_sent = False  # Extreme excitement after 10 min idle
         
         # EXACT ORIGINAL IMPLEMENTATION - Improved WPM calculation with stability optimizations
         self.typing_sessions = deque(maxlen=10)  # Reduced from 20 for faster response
@@ -529,6 +530,7 @@ class BongoCatEngine:
                 if not self.typing_active:
                     self.typing_active = True
                     self.sleep_start_time = None  # Reset sleep timer when typing resumes
+                    self.excitement_sent = False
                     print("⌨️ Typing started - keyboard listener working on main thread!")
                     # Update tray typing status
                     if self.tray:
@@ -675,6 +677,11 @@ class BongoCatEngine:
                     if self.serial_conn and self.serial_conn.is_open:
                         self.serial_conn.write(b"IDLE_START\n")
                         print(f"😴 Sleep timeout reached ({self.sleep_timeout}s) - starting sleep progression")
+
+                if (current_time - last_keystroke_time) >= 600 and not self.excitement_sent:
+                    self.excitement_sent = True
+                    self.send_command("EXCITED")
+                    print("Extreme excitement — keyboard idle > 10 minutes")
                 
                 # Don't send any more commands when idle
                 return

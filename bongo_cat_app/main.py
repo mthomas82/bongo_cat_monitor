@@ -26,6 +26,7 @@ class BongoCatApplication:
         self.no_tray = no_tray
         self.config = None
         self.engine = None
+        self.studio = None
         self.tray = None
         self.tk_root = None
         self.running = False
@@ -48,6 +49,8 @@ class BongoCatApplication:
             
             # Initialize engine with configuration
             print("Initializing Bongo Cat Engine...")
+            from sprite_studio_ctl import SpriteStudioController
+            self.studio = SpriteStudioController()
             self.engine = BongoCatEngine(config_manager=self.config)
             if self.port_override:
                 self.engine.port = self.port_override
@@ -63,7 +66,8 @@ class BongoCatApplication:
                 self.tray = BongoCatSystemTray(
                     config_manager=self.config,
                     engine=self.engine,
-                    on_exit_callback=self.shutdown
+                    on_exit_callback=self.shutdown,
+                    studio=self.studio,
                 )
                 self.engine.set_tray_reference(self.tray)
                 self.config.add_change_callback(self.tray.on_config_change)

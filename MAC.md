@@ -71,6 +71,18 @@ Do not use for now
 - sudo open /Applications/Bongo\\ Cat.app  (does not fix TCC)
 
 ------------------------------------------------------------------------
+Sprite studio (new cat art + screen layout)
+
+Does not start with the Python host. Run without --no-tray, then:
+
+  tray → Sprite editor → Start / Stop / Open in browser
+  Settings → Sprite editor
+
+Or:  python3 tools/sprite_studio.py --no-browser
+
+Details: tools/sprite_studio/README.md
+
+------------------------------------------------------------------------
 If serial_smoke.py sees no port
 
 - Try another USB cable (charge-only cables fail)

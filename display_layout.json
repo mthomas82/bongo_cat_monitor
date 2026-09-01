@@ -1,0 +1,30 @@
+{
+  "cat_offset_x": 12,
+  "cat_offset_y": 50,
+  "cat_zoom": 1024,
+  "cpu": {
+    "x": 5,
+    "y": 5,
+    "show": true
+  },
+  "ram": {
+    "x": 5,
+    "y": 25,
+    "show": true
+  },
+  "wpm": {
+    "x": 5,
+    "y": 45,
+    "show": true
+  },
+  "time": {
+    "x": -5,
+    "y": 5,
+    "show": true
+  },
+  "bg": [
+    255,
+    255,
+    255
+  ]
+}

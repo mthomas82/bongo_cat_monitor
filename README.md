@@ -81,6 +81,8 @@ python3 tools/serial_smoke.py
 python3 bongo_cat_app/main.py --no-tray
 # Headless / no typing: spoof the cat with
 python3 tools/cyd_testbench.py --demo
+# Sprite editor: tray (run without --no-tray) → Sprite editor → Start
+# or: python3 tools/sprite_studio.py --no-browser
 ```
 
 Native menu-bar app (Rust + Swift), if you have Xcode CLT and Rust:

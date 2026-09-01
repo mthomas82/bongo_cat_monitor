@@ -29,7 +29,8 @@ ROOT = lv.repo_root()
 STATIC = TOOLS / "sprite_studio"
 LAYOUT_JSON = ROOT / "display_layout.json"
 LAYOUT_H = ROOT / "display_layout.h"
-HOST, PORT = "0.0.0.0", 8765
+DEFAULT_HOST, DEFAULT_PORT = "0.0.0.0", 8765
+HOST, PORT = DEFAULT_HOST, DEFAULT_PORT
 
 POSES = {
     "idle": ["body/standardbody1", "face/stock_face", "table/table1", "paws/twopawsup"],
@@ -255,18 +256,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_error(404)
 
 
-def serve(open_browser: bool = True) -> None:
+def serve(open_browser: bool = True, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
     if not (STATIC / "index.html").exists():
         sys.exit(f"missing {(STATIC / 'index.html')}")
-    httpd = ThreadingHTTPServer((HOST, PORT), Handler)
-    url = f"http://{HOST}:{PORT}/"
-    print(f"Bongo Cat sprite studio  {url}")
-    print(f"this machine            http://127.0.0.1:{PORT}/")
-    print(f"LAN / other browsers    http://192.168.0.114:{PORT}/")
-    print(f"Tailscale               http://100.80.51.30:{PORT}/")
+    httpd = ThreadingHTTPServer((host, port), Handler)
+    print(f"Bongo Cat sprite studio  port {port} on {host}")
     print(f"repo  {ROOT}")
     if open_browser:
-        threading.Timer(0.4, lambda: webbrowser.open(url)).start()
+        threading.Timer(0.4, lambda: webbrowser.open(f"http://127.0.0.1:{port}/")).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
@@ -275,6 +272,9 @@ def serve(open_browser: bool = True) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--no-browser", action="store_true")
+    p.add_argument("--port", type=int, default=DEFAULT_PORT)
+    p.add_argument("--host", default=DEFAULT_HOST)
     sub = p.add_subparsers(dest="cmd")
     sub.add_parser("serve")
     sub.add_parser("convert-all")
@@ -285,7 +285,7 @@ def main() -> None:
     args = p.parse_args()
     cmd = args.cmd or "serve"
     if cmd == "serve":
-        serve()
+        serve(open_browser=not args.no_browser, host=args.host, port=args.port)
         return
     if cmd == "convert-all":
         for path in lv.convert_all(ROOT):

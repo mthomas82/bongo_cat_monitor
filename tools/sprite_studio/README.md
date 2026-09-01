@@ -24,32 +24,47 @@ and the LVGL C array the firmware actually compiles.
 
 ## Open the editor
 
+The editor does **not** start when you clone the repo or when you launch the
+typing host. Something has to start `tools/sprite_studio.py`.
+
+### From the desktop host app
+
+Run `bongo_cat_app/main.py` **with the system tray** (omit `--no-tray`).
+
+- Tray → **Sprite editor** → **Start** / **Stop** / **Open in browser**
+- Settings → **Sprite editor** (same three buttons)
+
+Start launches the studio on port 8765 if it is not already running, then
+opens it in the local browser. Stop ends whatever is listening on that port
+(including a copy started from a terminal). Quitting the typing app does
+**not** stop the editor; use Stop (or Ctrl+C in the terminal that started it).
+
+`--no-tray` has no tray menu and no Settings window, so use the CLI below.
+
+### From a terminal
+
 From the repo root (needs Python 3 and Pillow — already in
 `bongo_cat_app/requirements_app.txt`):
 
 ```bash
 cd /path/to/bongo_cat_monitor
 python3 -m pip install Pillow     # if needed
-python3 tools/sprite_studio.py
+python3 tools/sprite_studio.py --no-browser
 ```
 
-That serves on **port 8765**, bound to `0.0.0.0` (all interfaces). HTTP only,
-not HTTPS.
+That serves on **port 8765**, on every network interface of the machine
+running the script. Plain HTTP only — there is no TLS.
 
-| Where you are | URL |
-|---|---|
-| Same machine as the server | http://127.0.0.1:8765/ |
-| Another device on Tailscale (this household) | http://100.80.51.30:8765/ |
-| Same LAN, no Tailscale | `http://<beelink-lan-ip>:8765/` |
-
-`127.0.0.1` only works on the computer that is running `sprite_studio.py`.
-Phones, tablets, and other PCs must use Tailscale or the LAN address.
+On the same computer, open the editor in a browser on that port. From a
+phone, tablet, or another PC, use that computer’s Tailscale or LAN address
+and the same port. Loopback only works on the machine that is running
+`sprite_studio.py`.
 
 On a phone the layout stacks: editor on top, sprite strip, then layout
 controls. Draw with a finger. First load only fetches the current pose so
 Safari is not stuck downloading every PNG.
 
-Stop the server with Ctrl+C in the terminal.
+Stop the server with Ctrl+C in that terminal, or Stop from the host app.
 
 ### CLI (no browser)
 
@@ -244,6 +259,7 @@ tools/sprite_studio.py          # HTTP server + save/convert API
 tools/lvgl_sprite.py            # palette, catalog, PNG ↔ RGB565A8 C
 tools/sprite_studio/index.html  # the editor UI
 tools/sprite_studio/README.md   # this guide
+bongo_cat_app/sprite_studio_ctl.py  # start/stop from the host app
 
 Sprites/<layer>/*.png           # editable art
 animations/<layer>/*.c          # generated firmware blobs
@@ -257,8 +273,10 @@ display_layout.h                # generated #defines for bongo_cat.ino
 
 | Symptom | What to try |
 |---|---|
-| Page will not load from another device | Use Tailscale `http://100.80.51.30:8765/` or the LAN IP. Not `127.0.0.1`. HTTP, not HTTPS. Confirm `sprite_studio.py` is still running. |
-| Browser shows HTTPS / certificate error | Type `http://` explicitly. There is no TLS. |
+| Page will not load from another device | Use the host’s Tailscale or LAN address and port 8765. Loopback only works on the server itself. Confirm the studio is started (tray Start, or the terminal process). Plain HTTP only. |
+| Browser shows a certificate / HTTPS error | Force plain HTTP. There is no TLS. |
+| Tray has no Sprite editor menu | You launched with `--no-tray`. Restart without that flag, or use the CLI. |
+| Start does nothing new | Something is already listening on port 8765 — use Open in browser, or Stop then Start. |
 | Colors look wrong after save | You used off-palette RGB. Stick to the six swatches. |
 | New face never shows on the CYD | PNG+C is not enough — add it to `animations_sprites.h` and the sketch, then flash. |
 | Layout looks right in the studio, wrong on device | You previewed but did not click **Apply layout to firmware**, or you did not flash after Apply. |
@@ -271,4 +289,6 @@ display_layout.h                # generated #defines for bongo_cat.ino
 
 - `animations/Animation guidelines.md` — when firmware swaps faces / paws / effects
 - `animations/README.md` — sprite folders
-- `LINUX.md` — Linux host + a short studio pointer
+- `LINUX.md` — Linux host + tray start/stop
+- `MAC.md` — Mac host
+- `bongo_cat_app/README.md` — desktop app menu
