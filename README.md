@@ -69,6 +69,10 @@ This board includes:
 6. **Check system tray** - the app runs in the background
 7. **Right-click tray icon** to access settings and configure display options
 
+#### Linux / Mac (Python host)
+
+See **[LINUX.md](LINUX.md)** and **[MAC.md](MAC.md)** for the Python host, serial setup, and sprite-editor start/stop from the tray.
+
 ### Sprite Studio (edit cat art + screen layout)
 
 Pixel editor for the 64×64 layered cat sprites and a real-size 240×320 layout preview.
@@ -85,7 +89,7 @@ Or from a terminal:
 python3 tools/sprite_studio.py --no-browser
 ```
 
-Full usage guide: **[tools/sprite_studio/README.md](tools/sprite_studio/README.md)**
+Full usage guide: **[tools/sprite_studio/README.md](tools/sprite_studio/README.md)** · Linux/Mac host notes: **[LINUX.md](LINUX.md)**, **[MAC.md](MAC.md)**
 
 ## 📁 Project Structure
 
@@ -132,6 +136,8 @@ Full usage guide: **[tools/sprite_studio/README.md](tools/sprite_studio/README.m
 ├── 📄 User_Setup.h           # TFT_eSPI library configuration
 ├── 📄 Free_Fonts.h           # Font definitions
 ├── 📄 manifest.json          # Web flasher configuration
+├── 📄 LINUX.md               # Linux Python host + sprite editor
+├── 📄 MAC.md                 # Mac Python host + sprite editor
 └── 📄 LICENSE.txt            # MIT License
 ```
 
