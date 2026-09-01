@@ -16,6 +16,8 @@ import psutil
 import datetime
 from typing import Callable, Optional, Dict, Any
 
+from port_detect import find_esp32_device, select_port, from_pyserial
+
 class BongoCatEngine:
     """Bongo Cat engine using proven original implementation with configuration support"""
     
@@ -62,6 +64,7 @@ class BongoCatEngine:
         self.typing_active = False
         self.idle_start_time = current_time  # Initialize to current time so sleep detection works immediately
         self.sleep_start_time = None  # Track when we entered sleep mode
+        self.excitement_sent = False  # Extreme excitement after 10 min idle
         
         # EXACT ORIGINAL IMPLEMENTATION - Improved WPM calculation with stability optimizations
         self.typing_sessions = deque(maxlen=10)  # Reduced from 20 for faster response
@@ -171,62 +174,28 @@ class BongoCatEngine:
         print("✅ Configuration applied to Arduino")
 
     def find_esp32_port(self):
-        """Auto-detect ESP32 COM port - EXACT ORIGINAL IMPLEMENTATION"""
-        print("🔍 Scanning for ESP32...")
-        
-        ports = serial.tools.list_ports.comports()
-        esp32_ports = []
-        
-        for port in ports:
-            # Common ESP32 identifiers
-            esp32_keywords = [
-                'CP210',  # Silicon Labs CP2102/CP2104
-                'CH340',  # CH340 USB-to-serial chip
-                'CH341',  # CH341 USB-to-serial chip  
-                'FT232',  # FTDI chip
-                'ESP32',  # Direct ESP32 reference
-                'Silicon Labs',
-                'QinHeng Electronics'
-            ]
-            
-            description = str(port.description).upper()
-            manufacturer = str(port.manufacturer).upper() if port.manufacturer else ""
-            
-            for keyword in esp32_keywords:
-                if keyword.upper() in description or keyword.upper() in manufacturer:
-                    esp32_ports.append(port)
-                    print(f"🎯 Found potential ESP32: {port.device} - {port.description}")
-                    break
-        
-        if not esp32_ports:
-            print("❌ No ESP32 found automatically")
-            print("📋 Available ports:")
-            for port in ports:
-                print(f"   {port.device} - {port.description}")
-            return None
-        
-        if len(esp32_ports) == 1:
-            selected_port = esp32_ports[0].device
-            print(f"✅ Auto-selected: {selected_port}")
-            return selected_port
-        else:
-            print("🤔 Multiple ESP32 devices found:")
-            for i, port in enumerate(esp32_ports):
-                print(f"   {i+1}: {port.device} - {port.description}")
-            
-            try:
-                choice = input("Enter number (or press Enter for first): ").strip()
-                if not choice:
-                    selected_port = esp32_ports[0].device
-                else:
-                    index = int(choice) - 1
-                    selected_port = esp32_ports[index].device
-                
-                print(f"✅ Selected: {selected_port}")
-                return selected_port
-            except (ValueError, IndexError):
-                print("❌ Invalid selection, using first device")
-                return esp32_ports[0].device
+        """Auto-detect ESP32 serial port (VID/PID, keywords, macOS cu.usbserial*)."""
+        print("Scanning for ESP32...")
+        raw = serial.tools.list_ports.comports()
+        infos = [from_pyserial(p) for p in raw]
+        print("Ports:")
+        for info in infos:
+            print(f"   {info.device}  {info.description}  vid={info.vid}")
+
+        chosen = select_port(infos)
+        if chosen:
+            print(f"Auto-selected: {chosen.device}")
+            return chosen.device
+
+        fallback = find_esp32_device()
+        if fallback:
+            print(f"Auto-selected: {fallback}")
+            return fallback
+
+        print("No ESP32 found automatically. On Mac look for /dev/cu.usbserial-* or")
+        print("/dev/cu.wchusbserial* (CH340 driver) or /dev/cu.SLAB_USBtoUART (CP2102).")
+        print("Pass --port to main.py if you know the device path.")
+        return None
 
     def connect_serial(self, retries=3):
         """Connect to ESP32 via serial with retry logic - EXACT ORIGINAL IMPLEMENTATION"""
@@ -279,7 +248,11 @@ class BongoCatEngine:
                 return True
                 
             except Exception as e:
-                print(f"❌ Connection failed: {e}")
+                print(f"Connection failed: {e}")
+                if platform.system() == "Linux":
+                    from linux_permissions import SERIAL_HELP, looks_like_permission_error
+                    if looks_like_permission_error(e):
+                        print(SERIAL_HELP)
                 if attempt < retries - 1:
                     continue
                 # Update tray connection status on failure
@@ -557,6 +530,7 @@ class BongoCatEngine:
                 if not self.typing_active:
                     self.typing_active = True
                     self.sleep_start_time = None  # Reset sleep timer when typing resumes
+                    self.excitement_sent = False
                     print("⌨️ Typing started - keyboard listener working on main thread!")
                     # Update tray typing status
                     if self.tray:
@@ -703,6 +677,11 @@ class BongoCatEngine:
                     if self.serial_conn and self.serial_conn.is_open:
                         self.serial_conn.write(b"IDLE_START\n")
                         print(f"😴 Sleep timeout reached ({self.sleep_timeout}s) - starting sleep progression")
+
+                if (current_time - last_keystroke_time) >= 600 and not self.excitement_sent:
+                    self.excitement_sent = True
+                    self.send_command("EXCITED")
+                    print("Extreme excitement — keyboard idle > 10 minutes")
                 
                 # Don't send any more commands when idle
                 return
@@ -805,12 +784,32 @@ class BongoCatEngine:
         update_thread = threading.Thread(target=self.update_animation_loop, daemon=True)
         update_thread.start()
         
-        # Start keyboard listener on main thread - EXACT ORIGINAL THREADING MODEL
+        # Keyboard listener must run on the main thread (pynput / macOS).
+        if platform.system() == "Darwin":
+            from macos_permissions import warn_if_untrusted
+            if not warn_if_untrusted():
+                print("Serial is connected, but keystrokes will not be seen until")
+                print("Accessibility is granted and this process is relaunched.")
+        elif platform.system() == "Linux":
+            import os
+            if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+                print("No graphical display — pynput will not see keys.")
+                print("Spoof typing onto the CYD with:")
+                print("  python3 tools/cyd_testbench.py --demo")
         try:
             with keyboard.Listener(on_press=self.on_key_press) as listener:
                 listener.join()
         except KeyboardInterrupt:
             pass
+        except Exception as exc:
+            print(f"Keyboard listener failed: {exc}")
+            if platform.system() == "Darwin":
+                from macos_permissions import PERMISSION_HELP
+                print(PERMISSION_HELP)
+            elif platform.system() == "Linux":
+                from linux_permissions import SERIAL_HELP
+                print(SERIAL_HELP)
+            raise
         
         return True
     

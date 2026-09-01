@@ -25,6 +25,7 @@
 #include "animations/faces/happy_face.c"
 #include "animations/faces/blink_face.c"
 #include "animations/faces/sleepy_face.c"
+#include "animations/faces/excited_face.c"
 
 // Paw sprites
 #include "animations/paws/leftpawdown.c"
@@ -40,6 +41,8 @@
 #include "animations/effects/sleepy1.c"
 #include "animations/effects/sleepy2.c"
 #include "animations/effects/sleepy3.c"
+#include "animations/effects/excited1.c"
+#include "animations/effects/excited2.c"
 
 // External declarations for all sprites
 extern const lv_img_dsc_t standardbody1;
@@ -48,6 +51,7 @@ extern const lv_img_dsc_t stock_face;
 extern const lv_img_dsc_t happy_face;
 extern const lv_img_dsc_t blink_face;
 extern const lv_img_dsc_t sleepy_face;
+extern const lv_img_dsc_t excited_face;
 extern const lv_img_dsc_t leftpawdown;
 extern const lv_img_dsc_t rightpawdown;
 extern const lv_img_dsc_t twopawsup;
@@ -57,6 +61,8 @@ extern const lv_img_dsc_t right_click_effect;
 extern const lv_img_dsc_t sleepy1;
 extern const lv_img_dsc_t sleepy2;
 extern const lv_img_dsc_t sleepy3;
+extern const lv_img_dsc_t excited1;
+extern const lv_img_dsc_t excited2;
 
 // Sprite layer definitions (Z-order from back to front)
 typedef enum {
@@ -79,7 +85,8 @@ typedef enum {
     ANIM_STATE_TYPING_FAST,         // Stock face, fast paws + click effects
     ANIM_STATE_TYPING_STREAK,       // Happy face, ultra-fast paws
     ANIM_STATE_BLINKING,            // Brief blink animation
-    ANIM_STATE_EAR_TWITCH           // Body sprite swap
+    ANIM_STATE_EAR_TWITCH,          // Body sprite swap
+    ANIM_STATE_EXCITED              // 10 min keyboard idle — extreme excitement
 } animation_state_t;
 
 // Sprite management structure

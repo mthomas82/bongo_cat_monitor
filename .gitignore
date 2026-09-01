@@ -177,3 +177,14 @@ poetry.toml
 pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+
+# Node / Electron
+node_modules/
+bongo-cat-electron/dist/
+bongo-cat-electron/node_modules/
+
+# Native macOS client build
+bongo-cat-macos/build/
+bongo-cat-macos/bongocat-daemon/target/
+
+.DS_Store

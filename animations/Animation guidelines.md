@@ -38,6 +38,8 @@ mid idle: while hand removed swap stock face with sleepy face
 
 long idel: add sleepy effect, that fill loop sleepy effect from one to three
 
+10 min idle: swap to excited face, frantic paws, cycle excited1/excited2 sparkles until typing resumes
+
 
 
 Ear twitch: randomly while idle change stock body to bodyeartwitch, stock-twicth-stock-twitch-stock 

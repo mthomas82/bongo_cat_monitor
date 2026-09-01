@@ -4,6 +4,7 @@
 #include <EEPROM.h>
 #include "Free_Fonts.h"
 #include "animations_sprites.h"
+#include "display_layout.h"
 
 // Display settings
 #define SCREEN_WIDTH 240
@@ -46,6 +47,7 @@ bool python_control_mode = true;  // Python controls idle progression
 uint32_t last_command_time = 0;   // Track when last command received
 #define TYPING_TIMEOUT_MS 2000    // Stop typing animation after 2 seconds of no commands
 #define PYTHON_TIMEOUT_MS 5000    // Fall back to auto mode after 5 seconds
+#define EXCITEMENT_IDLE_MS (10UL * 60UL * 1000UL)  // Extreme excitement after 10 min idle
 
 // Simplified animation performance (removed aggressive frame limiting)
 uint32_t frame_skip_counter = 0;
@@ -281,10 +283,19 @@ void handleSerialCommands() {
             
         } else if (command == "IDLE_START") {
             // Enable idle progression when Python detects no typing
-            sprite_manager_set_state(&sprite_manager, ANIM_STATE_IDLE_STAGE1, current_time);
-            sprite_manager.idle_progression_enabled = true;  // Enable automatic progression
             python_control_mode = false;  // Let Arduino handle idle progression
-            Serial.println("😴 Idle progression enabled");
+            if (sprite_manager.current_state == ANIM_STATE_EXCITED) {
+                Serial.println("😴 IDLE_START ignored — already excited");
+            } else {
+                sprite_manager_set_state(&sprite_manager, ANIM_STATE_IDLE_STAGE1, current_time);
+                sprite_manager.idle_progression_enabled = true;  // Enable automatic progression
+                Serial.println("😴 Idle progression enabled");
+            }
+        } else if (command == "EXCITED") {
+            sprite_manager_set_state(&sprite_manager, ANIM_STATE_EXCITED, current_time);
+            python_control_mode = true;
+            last_command_time = current_time;
+            Serial.println("Excited after long idle");
             
         } else if (command == "IDLE") {
             // Compatibility with old command
@@ -357,6 +368,8 @@ void handleSerialCommands() {
                 sprite_manager_set_state(&sprite_manager, ANIM_STATE_BLINKING, current_time);
             } else if (anim == "EAR_TWITCH") {
                 sprite_manager_set_state(&sprite_manager, ANIM_STATE_EAR_TWITCH, current_time);
+            } else if (anim == "EXCITED") {
+                sprite_manager_set_state(&sprite_manager, ANIM_STATE_EXCITED, current_time);
             }
             Serial.println("PONG");
             
@@ -506,8 +519,20 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
         Serial.println("⚠️ Python timeout - enabling auto mode");
     }
     
+    // Extreme excitement after 10 minutes with no typing (host also sends EXCITED)
+    if (manager->current_state != ANIM_STATE_EXCITED &&
+        manager->current_state != ANIM_STATE_TYPING_SLOW &&
+        manager->current_state != ANIM_STATE_TYPING_NORMAL &&
+        manager->current_state != ANIM_STATE_TYPING_FAST &&
+        manager->current_state != ANIM_STATE_TYPING_STREAK &&
+        manager->last_typing_time > 0 &&
+        (current_time - manager->last_typing_time) >= EXCITEMENT_IDLE_MS) {
+        sprite_manager_set_state(manager, ANIM_STATE_EXCITED, current_time);
+    }
+
     // Handle automatic idle progression only if enabled
-    if (manager->idle_progression_enabled || !python_control_mode) {
+    if ((manager->idle_progression_enabled || !python_control_mode) &&
+        manager->current_state != ANIM_STATE_EXCITED) {
         // Calculate adaptive timing based on current sleep timeout setting
         unsigned long stage1_duration, stage2_duration, stage3_duration;
         calculateSleepStageTiming(settings.sleep_timeout_minutes, &stage1_duration, &stage2_duration, &stage3_duration);
@@ -538,7 +563,9 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
                 case 0:  // Left paw down
                     manager->current_sprites[LAYER_PAWS] = &leftpawdown;
                     // Show left click effect for fast typing
-                    if (manager->current_state == ANIM_STATE_TYPING_FAST || 
+                    if (manager->current_state == ANIM_STATE_EXCITED) {
+                        // Sparkle layer is driven separately
+                    } else if (manager->current_state == ANIM_STATE_TYPING_FAST || 
                         manager->current_state == ANIM_STATE_TYPING_STREAK) {
                         manager->current_sprites[LAYER_EFFECTS] = &left_click_effect;
                     } else {
@@ -548,13 +575,17 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
                     
                 case 1:  // Both paws up (rest position)
                     manager->current_sprites[LAYER_PAWS] = &twopawsup;
-                    manager->current_sprites[LAYER_EFFECTS] = NULL;  // No effects during rest
+                    if (manager->current_state != ANIM_STATE_EXCITED) {
+                        manager->current_sprites[LAYER_EFFECTS] = NULL;  // No effects during rest
+                    }
                     break;
                     
                 case 2:  // Right paw down  
                     manager->current_sprites[LAYER_PAWS] = &rightpawdown;
                     // Show right click effect for fast typing
-                    if (manager->current_state == ANIM_STATE_TYPING_FAST || 
+                    if (manager->current_state == ANIM_STATE_EXCITED) {
+                        // Sparkle layer is driven separately
+                    } else if (manager->current_state == ANIM_STATE_TYPING_FAST || 
                         manager->current_state == ANIM_STATE_TYPING_STREAK) {
                         manager->current_sprites[LAYER_EFFECTS] = &right_click_effect;
                     } else {
@@ -564,7 +595,9 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
                     
                 case 3:  // Both paws up (rest position)
                     manager->current_sprites[LAYER_PAWS] = &twopawsup;
-                    manager->current_sprites[LAYER_EFFECTS] = NULL;  // No effects during rest
+                    if (manager->current_state != ANIM_STATE_EXCITED) {
+                        manager->current_sprites[LAYER_EFFECTS] = NULL;  // No effects during rest
+                    }
                     break;
             }
             manager->paw_timer = current_time;
@@ -585,7 +618,13 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
     }
     
     // Handle sleepy effects animation (for IDLE_STAGE4)
-    if (manager->current_state == ANIM_STATE_IDLE_STAGE4) {
+    if (manager->current_state == ANIM_STATE_EXCITED) {
+        if (current_time - manager->effect_timer > 180) {
+            manager->effect_frame = (manager->effect_frame + 1) % 2;
+            manager->current_sprites[LAYER_EFFECTS] = (manager->effect_frame == 0) ? &excited1 : &excited2;
+            manager->effect_timer = current_time;
+        }
+    } else if (manager->current_state == ANIM_STATE_IDLE_STAGE4) {
         if (current_time - manager->effect_timer > 1000) { // Change effect every second
             manager->effect_frame = (manager->effect_frame + 1) % 3;
             switch (manager->effect_frame) {
@@ -600,7 +639,8 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
     // Handle automatic blinking (only when awake, not during sleep)
     // Only blink when not sleeping (stages 3 and 4 have sleepy face, no blinking)
     bool can_blink = (manager->current_state != ANIM_STATE_IDLE_STAGE3 && 
-                      manager->current_state != ANIM_STATE_IDLE_STAGE4);
+                      manager->current_state != ANIM_STATE_IDLE_STAGE4 &&
+                      manager->current_state != ANIM_STATE_EXCITED);
     
     if (!manager->blinking && current_time >= manager->blink_timer && can_blink) {
         // Start blink
@@ -614,6 +654,8 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
         if (manager->current_state == ANIM_STATE_IDLE_STAGE3 || 
             manager->current_state == ANIM_STATE_IDLE_STAGE4) {
             manager->current_sprites[LAYER_FACE] = &sleepy_face;
+        } else if (manager->current_state == ANIM_STATE_EXCITED) {
+            manager->current_sprites[LAYER_FACE] = &excited_face;
         } else if (manager->is_streak_mode && manager->paw_animation_active) {
             manager->current_sprites[LAYER_FACE] = &happy_face;  // Happy face during any typing streak
         } else {
@@ -743,6 +785,20 @@ void sprite_manager_set_state(sprite_manager_t* manager, animation_state_t new_s
             manager->paw_timer = current_time;
             Serial.println("👐⚡😊 Legacy streak mode - fast typing with happy face");
             break;
+
+        case ANIM_STATE_EXCITED:
+            manager->current_sprites[LAYER_FACE] = &excited_face;
+            manager->current_sprites[LAYER_PAWS] = &leftpawdown;
+            manager->current_sprites[LAYER_EFFECTS] = &excited1;
+            manager->paw_animation_active = true;
+            manager->paw_frame = 0;
+            manager->paw_timer = current_time;
+            manager->effect_timer = current_time;
+            manager->effect_frame = 0;
+            manager->animation_speed_ms = 40;
+            manager->idle_progression_enabled = false;
+            Serial.println("Extreme excitement — 10 min idle");
+            break;
     }
     
     // Reset idle progression when entering any typing state
@@ -783,6 +839,7 @@ const char* get_state_name(animation_state_t state) {
         case ANIM_STATE_TYPING_NORMAL: return "TYPING_NORMAL";
         case ANIM_STATE_TYPING_FAST: return "TYPING_FAST";
         case ANIM_STATE_TYPING_STREAK: return "TYPING_STREAK";  // Keep for compatibility but unused
+        case ANIM_STATE_EXCITED: return "EXCITED";
         default: return "UNKNOWN";
     }
 }
@@ -802,7 +859,7 @@ void setup() {
     
     tft.init();
     tft.setRotation(0);
-    tft.fillScreen(TFT_WHITE);  // White background
+    tft.fillScreen(tft.color565(SCREEN_BG_R, SCREEN_BG_G, SCREEN_BG_B));
     
     lv_init();
     
@@ -831,7 +888,7 @@ void createBongoCat() {
     screen = lv_scr_act();
     
     // Set white background
-    lv_obj_set_style_bg_color(screen, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(screen, lv_color_make(SCREEN_BG_R, SCREEN_BG_G, SCREEN_BG_B), 0);
     
     // Create cat canvas with proper sizing
     cat_canvas = lv_canvas_create(screen);
@@ -840,38 +897,38 @@ void createBongoCat() {
     static lv_color_t canvas_buf[CAT_SIZE * CAT_SIZE];  // 64x64 buffer
     lv_canvas_set_buffer(cat_canvas, canvas_buf, CAT_SIZE, CAT_SIZE, LV_IMG_CF_TRUE_COLOR);
     
-    // Apply 4x zoom to make 64x64 sprites appear as 256x256 on screen
-    lv_img_set_zoom(cat_canvas, 1024);  // 4x zoom: 64x64 -> 256x256 pixels
+    // Zoom is 256 = 1x. Default CAT_ZOOM 1024 = 4x (64x64 -> 256x256).
+    lv_img_set_zoom(cat_canvas, CAT_ZOOM);
     lv_img_set_antialias(cat_canvas, false);  // Keep pixels crisp and blocky
     
-    // Position cat: original alignment method + 3 cat pixels right + a bit lower
-    lv_obj_align(cat_canvas, LV_ALIGN_CENTER, 12, 50);  // 12px right (3 cat pixels), 50px lower
+    // Position cat relative to screen center. Edited by sprite studio.
+    lv_obj_align(cat_canvas, LV_ALIGN_CENTER, CAT_OFFSET_X, CAT_OFFSET_Y);
     
     // Create system stats labels (top left) with pixelated font
     cpu_label = lv_label_create(screen);
     lv_label_set_text(cpu_label, "CPU: 0%");
     lv_obj_set_style_text_font(cpu_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(cpu_label, lv_color_black(), 0);
-    lv_obj_align(cpu_label, LV_ALIGN_TOP_LEFT, 5, 5);
+    lv_obj_align(cpu_label, LV_ALIGN_TOP_LEFT, STAT_CPU_X, STAT_CPU_Y);
     
     ram_label = lv_label_create(screen);
     lv_label_set_text(ram_label, "RAM: 0%");
     lv_obj_set_style_text_font(ram_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(ram_label, lv_color_black(), 0);
-    lv_obj_align(ram_label, LV_ALIGN_TOP_LEFT, 5, 25);
+    lv_obj_align(ram_label, LV_ALIGN_TOP_LEFT, STAT_RAM_X, STAT_RAM_Y);
     
     wpm_label = lv_label_create(screen);
     lv_label_set_text(wpm_label, "WPM: 0");
     lv_obj_set_style_text_font(wpm_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(wpm_label, lv_color_black(), 0);
-    lv_obj_align(wpm_label, LV_ALIGN_TOP_LEFT, 5, 45);
+    lv_obj_align(wpm_label, LV_ALIGN_TOP_LEFT, STAT_WPM_X, STAT_WPM_Y);
     
     // Create time label (top right) - bigger pixelated font
     time_label = lv_label_create(screen);
     lv_label_set_text(time_label, "00:00");
     lv_obj_set_style_text_font(time_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(time_label, lv_color_black(), 0);
-    lv_obj_align(time_label, LV_ALIGN_TOP_RIGHT, -5, 5);
+    lv_obj_align(time_label, LV_ALIGN_TOP_RIGHT, STAT_TIME_X, STAT_TIME_Y);
     
     // Initial render
     sprite_render_layers(&sprite_manager, cat_canvas, millis());
