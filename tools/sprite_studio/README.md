@@ -33,17 +33,13 @@ python3 -m pip install Pillow     # if needed
 python3 tools/sprite_studio.py
 ```
 
-That serves on **port 8765**, bound to `0.0.0.0` (all interfaces). HTTP only,
-not HTTPS.
+That serves on **port 8765**, on every network interface of the machine
+running the script. Plain HTTP only — there is no TLS.
 
-| Where you are | URL |
-|---|---|
-| Same machine as the server | http://127.0.0.1:8765/ |
-| Another device on Tailscale (this household) | http://100.80.51.30:8765/ |
-| Same LAN, no Tailscale | `http://<beelink-lan-ip>:8765/` |
-
-`127.0.0.1` only works on the computer that is running `sprite_studio.py`.
-Phones, tablets, and other PCs must use Tailscale or the LAN address.
+On the same computer, open the editor in a browser on that port. From a
+phone, tablet, or another PC, use that computer’s Tailscale or LAN address
+and the same port. Loopback only works on the machine that is running
+`sprite_studio.py`.
 
 On a phone the layout stacks: editor on top, sprite strip, then layout
 controls. Draw with a finger. First load only fetches the current pose so
@@ -257,8 +253,8 @@ display_layout.h                # generated #defines for bongo_cat.ino
 
 | Symptom | What to try |
 |---|---|
-| Page will not load from another device | Use Tailscale `http://100.80.51.30:8765/` or the LAN IP. Not `127.0.0.1`. HTTP, not HTTPS. Confirm `sprite_studio.py` is still running. |
-| Browser shows HTTPS / certificate error | Type `http://` explicitly. There is no TLS. |
+| Page will not load from another device | Use the host’s Tailscale or LAN address and port 8765. Loopback only works on the server itself. Confirm `sprite_studio.py` is still running. Plain HTTP only. |
+| Browser shows a certificate / HTTPS error | Force plain HTTP. There is no TLS. |
 | Colors look wrong after save | You used off-palette RGB. Stick to the six swatches. |
 | New face never shows on the CYD | PNG+C is not enough — add it to `animations_sprites.h` and the sketch, then flash. |
 | Layout looks right in the studio, wrong on device | You previewed but did not click **Apply layout to firmware**, or you did not flash after Apply. |
