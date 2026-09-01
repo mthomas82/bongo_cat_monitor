@@ -69,6 +69,17 @@ This board includes:
 6. **Check system tray** - the app runs in the background
 7. **Right-click tray icon** to access settings and configure display options
 
+### Sprite Studio (edit cat art + screen layout)
+
+Pixel editor for the 64×64 layered cat sprites and a real-size 240×320 layout preview.
+
+```bash
+python3 tools/sprite_studio.py
+# http://127.0.0.1:8765/
+```
+
+Full usage guide: **[tools/sprite_studio/README.md](tools/sprite_studio/README.md)**
+
 ## 📁 Project Structure
 
 ```
@@ -92,6 +103,9 @@ This board includes:
 │   ├── 📁 renderer/           # UI components
 │   ├── 📁 src/                # Core functionality modules
 │   └── 📄 package.json        # Dependencies and build configuration
+├── 📁 tools/                  # Host helpers + sprite studio
+│   ├── 📄 sprite_studio.py    # Browser pixel editor (port 8765)
+│   └── 📁 sprite_studio/      # Editor UI + usage guide
 ├── 📁 BongoCat_Release/       # Windows installer package
 │   ├── 📄 BongoCat_Setup.exe  # Ready-to-install executable
 │   ├── 📄 README.md           # Installation instructions
