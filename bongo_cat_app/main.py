@@ -11,16 +11,22 @@ import threading
 import time
 from config import ConfigManager
 from engine import BongoCatEngine
-from tray import BongoCatSystemTray
+try:
+    from tray import BongoCatSystemTray
+except ImportError:
+    BongoCatSystemTray = None
 
 class BongoCatApplication:
     """Main Bongo Cat application with FIXED thread-safe GUI"""
     
-    def __init__(self, start_minimized=False):
+    def __init__(self, start_minimized=False, port=None, no_tray=False):
         """Initialize the application"""
         self.start_minimized = start_minimized
+        self.port_override = port
+        self.no_tray = no_tray
         self.config = None
         self.engine = None
+        self.studio = None
         self.tray = None
         self.tk_root = None
         self.running = False
@@ -42,22 +48,29 @@ class BongoCatApplication:
             self.config = ConfigManager()
             
             # Initialize engine with configuration
-            print("🔧 Initializing Bongo Cat Engine...")
+            print("Initializing Bongo Cat Engine...")
+            from sprite_studio_ctl import SpriteStudioController
+            self.studio = SpriteStudioController()
             self.engine = BongoCatEngine(config_manager=self.config)
+            if self.port_override:
+                self.engine.port = self.port_override
+                print(f"Using serial port {self.port_override}")
             
-            # Initialize system tray (but don't start it yet)
-            print("📱 Setting up system tray...")
-            self.tray = BongoCatSystemTray(
-                config_manager=self.config,
-                engine=self.engine,
-                on_exit_callback=self.shutdown
-            )
-            
-            # Connect engine to tray for status updates
-            self.engine.set_tray_reference(self.tray)
-            
-            # Connect tray to config for settings refresh
-            self.config.add_change_callback(self.tray.on_config_change)
+            if self.no_tray:
+                print("Skipping system tray")
+            elif BongoCatSystemTray is None:
+                print("pystray not installed; continuing without tray (pip install pystray)")
+                self.no_tray = True
+            else:
+                print("Setting up system tray...")
+                self.tray = BongoCatSystemTray(
+                    config_manager=self.config,
+                    engine=self.engine,
+                    on_exit_callback=self.shutdown,
+                    studio=self.studio,
+                )
+                self.engine.set_tray_reference(self.tray)
+                self.config.add_change_callback(self.tray.on_config_change)
             
             return True
             
@@ -77,9 +90,15 @@ class BongoCatApplication:
         self.running = True
         
         try:
-            # CRITICAL FIX: Use pystray run_detached() method for proper GUI/tray coexistence
-            print("📱 Starting system tray with run_detached()...")
-            self.tray.start_detached()
+            if self.no_tray:
+                print("Tray disabled (--no-tray). Keyboard + serial only.")
+            else:
+                print("Starting system tray...")
+                try:
+                    self.tray.start_detached()
+                except Exception as exc:
+                    print(f"Tray failed ({exc}); continuing without it.")
+                    self.no_tray = True
             
             # Update initial connection status
             print("🔄 Checking initial connection status...")
@@ -143,18 +162,23 @@ def main():
     """Main application entry point"""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Bongo Cat Typing Monitor")
-    parser.add_argument("--minimized", action="store_true", 
+    parser.add_argument("--minimized", action="store_true",
                        help="Start minimized to system tray")
     parser.add_argument("--startup", action="store_true",
                        help="Started automatically with Windows")
+    parser.add_argument("--port", default=None,
+                       help="Serial device (e.g. /dev/cu.usbserial-0001). Default: auto")
+    parser.add_argument("--no-tray", action="store_true",
+                       help="Skip system tray (recommended for first Mac/Linux test)")
     
     args = parser.parse_args()
     
-    # Determine start mode
     start_minimized = args.minimized or args.startup
-    
-    # Create and run application
-    app = BongoCatApplication(start_minimized=start_minimized)
+    app = BongoCatApplication(
+        start_minimized=start_minimized,
+        port=args.port,
+        no_tray=args.no_tray,
+    )
     return app.run()
 
 if __name__ == "__main__":

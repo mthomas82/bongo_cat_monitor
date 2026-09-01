@@ -72,9 +72,17 @@ This board includes:
 ### Sprite Studio (edit cat art + screen layout)
 
 Pixel editor for the 64×64 layered cat sprites and a real-size 240×320 layout preview.
+It does **not** start on clone or when the typing app launches.
+
+From the desktop host (omit `--no-tray`):
+
+- Tray → **Sprite editor** → Start / Stop / Open in browser
+- Settings → **Sprite editor**
+
+Or from a terminal:
 
 ```bash
-python3 tools/sprite_studio.py
+python3 tools/sprite_studio.py --no-browser
 ```
 
 Full usage guide: **[tools/sprite_studio/README.md](tools/sprite_studio/README.md)**
@@ -92,8 +100,9 @@ Full usage guide: **[tools/sprite_studio/README.md](tools/sprite_studio/README.m
 ├── 📁 bongo_cat_app/          # Desktop companion application (Windows)
 │   ├── 📄 main.py             # Application entry point
 │   ├── 📄 engine.py           # Core logic and serial communication
-│   ├── 📄 gui.py              # Settings GUI
-│   ├── 📄 tray.py             # System tray functionality
+│   ├── 📄 gui.py              # Settings GUI (Sprite editor tab)
+│   ├── 📄 tray.py             # System tray (Sprite editor start/stop)
+│   ├── 📄 sprite_studio_ctl.py # Start/stop the pixel editor
 │   ├── 📄 config.py           # Configuration management
 │   └── 📄 requirements_app.txt
 ├── 📁 bongo-cat-electron/     # 🆕 Cross-platform Electron app (Mac & Windows)

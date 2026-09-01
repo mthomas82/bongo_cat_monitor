@@ -12,10 +12,11 @@ from typing import Optional, Callable
 class BongoCatSettingsGUI:
     """Settings GUI for Bongo Cat application"""
     
-    def __init__(self, config_manager=None, engine=None, on_close_callback: Optional[Callable] = None, parent_root=None):
+    def __init__(self, config_manager=None, engine=None, on_close_callback: Optional[Callable] = None, parent_root=None, studio=None):
         """Initialize the settings GUI"""
         self.config = config_manager
         self.engine = engine
+        self.studio = studio
         self.on_close_callback = on_close_callback
         self.parent_root = parent_root  # Optional parent tkinter root
         self.window = None
@@ -95,6 +96,7 @@ class BongoCatSettingsGUI:
             self.create_behavior_tab(notebook)
             self.create_connection_tab(notebook)
             self.create_startup_tab(notebook)
+            self.create_studio_tab(notebook)
             
             # Create button frame
             button_frame = ttk.Frame(self.window)
@@ -296,6 +298,70 @@ class BongoCatSettingsGUI:
         self.widgets['status_label'].pack(anchor='w')
         
         self.update_status_info()
+
+    def create_studio_tab(self, notebook):
+        """Start/stop the sprite editor from the host app."""
+        frame = ttk.Frame(notebook)
+        notebook.add(frame, text="Sprite editor")
+        main_frame = ttk.Frame(frame)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        group = ttk.LabelFrame(main_frame, text="Sprite studio", padding=15)
+        group.pack(fill="x")
+
+        ttk.Label(
+            group,
+            text="The pixel editor is a separate process. It does not start with this app.",
+            wraplength=420,
+        ).pack(anchor="w", pady=(0, 10))
+
+        self.widgets["studio_status"] = ttk.Label(group, text="")
+        self.widgets["studio_status"].pack(anchor="w", pady=(0, 10))
+
+        btns = ttk.Frame(group)
+        btns.pack(fill="x")
+        ttk.Button(btns, text="Start", command=self.start_sprite_studio).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="Stop", command=self.stop_sprite_studio).pack(side="left", padx=(0, 6))
+        ttk.Button(btns, text="Open in browser", command=self.open_sprite_studio).pack(side="left")
+        self.refresh_studio_status()
+
+    def _studio(self):
+        if self.studio is None:
+            from sprite_studio_ctl import SpriteStudioController
+            self.studio = SpriteStudioController()
+        return self.studio
+
+    def refresh_studio_status(self):
+        label = self.widgets.get("studio_status")
+        if not label:
+            return
+        studio = self._studio()
+        if studio.is_running():
+            label.config(text=f"Running on port {studio.port}")
+        else:
+            label.config(text="Stopped")
+
+    def start_sprite_studio(self):
+        result = self._studio().start()
+        self.refresh_studio_status()
+        if not result.get("ok"):
+            messagebox.showerror("Sprite editor", result.get("error") or "Failed to start")
+            return
+        self.open_sprite_studio()
+
+    def stop_sprite_studio(self):
+        result = self._studio().stop()
+        self.refresh_studio_status()
+        if not result.get("ok"):
+            messagebox.showerror("Sprite editor", result.get("error") or "Failed to stop")
+
+    def open_sprite_studio(self):
+        import webbrowser
+        studio = self._studio()
+        if not studio.is_running():
+            messagebox.showinfo("Sprite editor", "Start the editor first.")
+            return
+        webbrowser.open(studio.local_url())
     
     def scan_ports(self):
         """Scan for available COM ports"""
