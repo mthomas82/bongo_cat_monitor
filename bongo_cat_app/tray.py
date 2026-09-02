@@ -30,6 +30,7 @@ class BongoCatSystemTray:
         # Status tracking
         self.connection_status = "disconnected"
         self.last_wpm = 0
+        self.last_keys = 0
         self.typing_active = False
         
 
@@ -154,6 +155,11 @@ class BongoCatSystemTray:
                 "Bongo Cat Monitor",
                 self.show_about,
                 default=True
+            ),
+            item(
+                self.get_keys_typed_label,
+                None,
+                enabled=False
             ),
             pystray.Menu.SEPARATOR,
             item(
@@ -469,9 +475,20 @@ class BongoCatSystemTray:
         # Update tooltip with current status
         if self.icon:
             if active:
-                self.icon.title = f"Bongo Cat - Typing ({wpm:.0f} WPM)"
+                self.icon.title = f"Bongo Cat - Typing ({wpm:.0f} WPM, {self.last_keys} keys)"
             else:
-                self.icon.title = "Bongo Cat - Idle"
+                self.icon.title = f"Bongo Cat - Idle ({self.last_keys} keys)"
+
+    def get_keys_typed_label(self, _icon=None):
+        return f"Keys typed: {self.last_keys}"
+
+    def update_keys_typed(self, total: int):
+        self.last_keys = int(total)
+        if self.icon:
+            if self.typing_active:
+                self.icon.title = f"Bongo Cat - Typing ({self.last_wpm:.0f} WPM, {self.last_keys} keys)"
+            else:
+                self.icon.title = f"Bongo Cat - Idle ({self.last_keys} keys)"
     
     def refresh_menu(self):
         """Refresh the tray menu to reflect current settings"""

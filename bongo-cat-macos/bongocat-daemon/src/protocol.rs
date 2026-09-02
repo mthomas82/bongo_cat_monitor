@@ -27,9 +27,14 @@ pub fn streak_off_command() -> &'static str {
     "STREAK_OFF\n"
 }
 
-/// Generate STATS command with CPU, RAM, and WPM values
-pub fn stats_command(cpu: u8, ram: u8, wpm: u8) -> String {
-    format!("STATS:CPU:{},RAM:{},WPM:{}\n", cpu, ram, wpm)
+/// Generate STATS command with CPU, RAM, WPM, and lifetime keys
+pub fn stats_command(cpu: u8, ram: u8, wpm: u8, keys: u64) -> String {
+    format!("STATS:CPU:{},RAM:{},WPM:{},KEYS:{}\n", cpu, ram, wpm, keys)
+}
+
+/// Generate KEYS command (lifetime key count)
+pub fn keys_command(keys: u64) -> String {
+    format!("KEYS:{}\n", keys)
 }
 
 /// Generate TIME command (24h format HH:MM)
@@ -73,7 +78,10 @@ mod tests {
 
     #[test]
     fn test_stats_command() {
-        assert_eq!(stats_command(45, 67, 23), "STATS:CPU:45,RAM:67,WPM:23\n");
+        assert_eq!(
+            stats_command(45, 67, 23, 99),
+            "STATS:CPU:45,RAM:67,WPM:23,KEYS:99\n"
+        );
     }
 
     #[test]

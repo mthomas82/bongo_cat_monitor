@@ -4,6 +4,7 @@
 //! and ESP32 serial communication.
 
 mod keyboard;
+mod keys;
 mod protocol;
 mod serial;
 mod state_machine;
@@ -43,6 +44,7 @@ struct AppContext {
     state_machine: StateMachine,
     system_monitor: SystemMonitor,
     serial: SerialManager,
+    key_counter: keys::KeyCounter,
     last_stats_time: Instant,
     last_time_sync: Instant,
     last_speed_sent: u16,
@@ -57,6 +59,7 @@ impl AppContext {
             state_machine: StateMachine::new(),
             system_monitor: SystemMonitor::new(),
             serial: SerialManager::new(),
+            key_counter: keys::KeyCounter::load(),
             last_stats_time: Instant::now(),
             last_time_sync: Instant::now() - TIME_SYNC_INTERVAL, // Force immediate sync
             last_speed_sent: 500,
@@ -96,6 +99,7 @@ fn main() {
             match key_rx.try_recv() {
                 Ok(event) => {
                     ctx.wpm_calc.record_keystroke(event.timestamp);
+                    ctx.key_counter.add(1);
                 }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
@@ -189,6 +193,8 @@ fn update(ctx: &mut AppContext) {
         ctx.last_stats_time = now;
     }
 
+    ctx.key_counter.maybe_flush();
+
     // Send periodic time sync
     if now.duration_since(ctx.last_time_sync) >= TIME_SYNC_INTERVAL {
         send_time_sync(ctx);
@@ -254,9 +260,12 @@ fn send_stats(ctx: &mut AppContext, wpm: f64) {
     let cpu = ctx.system_monitor.cpu_percent();
     let ram = ctx.system_monitor.ram_percent();
     let wpm_int = wpm.clamp(0.0, 255.0) as u8;
+    let keys = ctx.key_counter.total();
 
-    let cmd = protocol::stats_command(cpu, ram, wpm_int);
+    let cmd = protocol::stats_command(cpu, ram, wpm_int, keys);
     let _ = ctx.serial.send_command(&cmd);
+    let _ = ctx.serial.send_command(&protocol::keys_command(keys));
+    output_status(&format!("keys:{}", keys));
 }
 
 /// Send time sync to ESP32

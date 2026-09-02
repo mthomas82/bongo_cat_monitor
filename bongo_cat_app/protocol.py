@@ -32,8 +32,11 @@ def streak_commands(wpm: float) -> List[str]:
     return ["STREAK_OFF"]
 
 
-def stats_command(cpu: int, ram: int, wpm: float) -> str:
-    return f"STATS:CPU:{int(cpu)},RAM:{int(ram)},WPM:{int(round(wpm))}"
+def stats_command(cpu: int, ram: int, wpm: float, keys: int | None = None) -> str:
+    cmd = f"STATS:CPU:{int(cpu)},RAM:{int(ram)},WPM:{int(round(wpm))}"
+    if keys is not None:
+        cmd += f",KEYS:{int(keys)}"
+    return cmd
 
 
 def typing_commands(wpm: float, cpu: int = 0, ram: int = 0) -> List[str]:

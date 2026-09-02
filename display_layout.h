@@ -11,6 +11,8 @@
 #define STAT_WPM_Y 45
 #define STAT_TIME_X -5
 #define STAT_TIME_Y 5
+#define STAT_KEYS_X -5
+#define STAT_KEYS_Y 25
 #define SCREEN_BG_R 255
 #define SCREEN_BG_G 255
 #define SCREEN_BG_B 255

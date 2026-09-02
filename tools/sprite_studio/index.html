@@ -144,6 +144,7 @@
             <div class="stat" data-stat="ram">RAM: 34%</div>
             <div class="stat" data-stat="wpm">WPM: 56</div>
             <div class="stat" data-stat="time">14:22</div>
+            <div class="stat" data-stat="keys">KEYS:0</div>
           </div>
         </div>
         <div class="hint">drag stats · drag the cat · this is the real 240×320 screen</div>
@@ -172,7 +173,8 @@
     <div class="row"><label><input type="checkbox" data-show="cpu" checked /> CPU</label>
       <label><input type="checkbox" data-show="ram" checked /> RAM</label></div>
     <div class="row"><label><input type="checkbox" data-show="wpm" checked /> WPM</label>
-      <label><input type="checkbox" data-show="time" checked /> Time</label></div>
+      <label><input type="checkbox" data-show="time" checked /> Time</label>
+      <label><input type="checkbox" data-show="keys" checked /> Keys</label></div>
     <button class="primary" id="saveLayout">Apply layout to firmware</button>
     <p class="hint">Writes display_layout.json + display_layout.h. Rebuild/flash the ESP32 after applying. Cat offsets are LV_ALIGN_CENTER; time is TOP_RIGHT (x is typically negative).</p>
     <h2>Layers (back → front)</h2>
@@ -307,6 +309,7 @@ function drawTft(pixs){
   placeStat("ram", L.ram, true);
   placeStat("wpm", L.wpm, true);
   placeStat("time", L.time, false);
+  if (L.keys) placeStat("keys", L.keys, false);
 }
 
 function placeStat(name, box, topLeft){

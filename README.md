@@ -17,15 +17,10 @@ Bongo Cat is a cute digital pet that lives on your desk and types along with you
 - **Easy Assembly** - No soldering required, around $10 to build
 - **3D printed case** - files available on [MakerWorld](https://makerworld.com/en/models/1654522)
 
-## 🎉 **NEW: Mac Support Available!** 
+## 🎉 Mac
 
-🍎 **Mac users can now enjoy Bongo Cat!** We've added full macOS support with:
-- **Native Mac app** - Download and install like any other Mac application
-- **Universal binary** - Works on both Intel and Apple Silicon Macs
-- **Easy installation** - Simple drag-and-drop setup with step-by-step guide
-- **Proper permissions** - Seamless integration with macOS security
-
-📥 **[Download for Mac](https://github.com/vostoklabs/bongo_cat_monitor/releases)** | 📖 **[Mac Installation Guide](bongo-cat-electron/MAC_USER_GUIDE.md)**
+Double-click **Start Bongo Cat.command** in this folder (see **[MAC.md](MAC.md)**).
+Do not use the old unsigned Electron DMG — it often shows "app is damaged".
 
 ## 🛒 Hardware Requirements
 
@@ -55,21 +50,18 @@ This board includes:
 
 ## Desktop Application Setup
 
-### Mac (use this, not the old DMG)
+### Mac (about two minutes)
 
-The Electron DMG is not reliable on recent macOS. See **MAC.md**.
+Do **not** use the old Electron DMG. On a Mac:
 
-Short version:
+1. Plug the cat in over USB.
+2. Unzip this project.
+3. Double-click **Start Bongo Cat.command** (right-click → Open the first time).
+4. Allow Accessibility + Input Monitoring if asked, then type.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r bongo_cat_app/requirements_app.txt
-python3 tools/serial_smoke.py
-python3 bongo_cat_app/main.py --no-tray
-```
+Full walkthrough: **[MAC.md](MAC.md)**.
 
-Grant Accessibility + Input Monitoring to Terminal, then relaunch.
+If GitHub Releases has **BongoCat-macOS.zip**, unzip and right-click **BongoCat.app → Open** instead.
 
 ### Linux
 
@@ -83,12 +75,6 @@ python3 bongo_cat_app/main.py --no-tray
 python3 tools/cyd_testbench.py --demo
 # Sprite editor: tray (run without --no-tray) → Sprite editor → Start
 # or: python3 tools/sprite_studio.py --no-browser
-```
-
-Native menu-bar app (Rust + Swift), if you have Xcode CLT and Rust:
-
-```bash
-cd bongo-cat-macos && make && make run
 ```
 
 ### Windows  

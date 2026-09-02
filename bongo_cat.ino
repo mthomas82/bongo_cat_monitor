@@ -5,6 +5,12 @@
 #include "Free_Fonts.h"
 #include "animations_sprites.h"
 #include "display_layout.h"
+#ifndef STAT_KEYS_X
+#define STAT_KEYS_X -5
+#endif
+#ifndef STAT_KEYS_Y
+#define STAT_KEYS_Y 25
+#endif
 
 // Display settings
 #define SCREEN_WIDTH 240
@@ -77,6 +83,7 @@ uint32_t screensaver_last_move = 0;
 void screensaver_enter();
 void screensaver_exit();
 void screensaver_update(uint32_t current_time);
+void updateKeysDisplay();
 
 // System stats display
 lv_obj_t * screen = NULL;
@@ -84,11 +91,13 @@ lv_obj_t * cpu_label = NULL;
 lv_obj_t * ram_label = NULL;
 lv_obj_t * wpm_label = NULL;
 lv_obj_t * time_label = NULL;
+lv_obj_t * keys_label = NULL;
 
 // Stats data
 int cpu_usage = 0;
 int ram_usage = 0;
 int wpm_speed = 0;
+uint32_t keys_typed = 0;
 String current_time_str = "00:00";
 bool time_initialized = false;  // Track if we've received time from Python
 
@@ -119,6 +128,23 @@ void updateSystemStats(int cpu, int ram, int wpm) {
     }
     if (wpm_label) {
         lv_label_set_text_fmt(wpm_label, "WPM: %d", wpm);
+    }
+    updateKeysDisplay();
+}
+
+void updateKeysDisplay() {
+    if (!keys_label) {
+        return;
+    }
+    if (keys_typed >= 1000000UL) {
+        lv_label_set_text_fmt(keys_label, "KEYS:%lu.%luM",
+                              (unsigned long)(keys_typed / 1000000UL),
+                              (unsigned long)((keys_typed / 100000UL) % 10UL));
+    } else if (keys_typed >= 10000UL) {
+        lv_label_set_text_fmt(keys_label, "KEYS:%luk",
+                              (unsigned long)(keys_typed / 1000UL));
+    } else {
+        lv_label_set_text_fmt(keys_label, "KEYS:%lu", (unsigned long)keys_typed);
     }
 }
 
@@ -392,10 +418,21 @@ void handleSerialCommands() {
             int ram = stats.substring(ramStart, ramEnd).toInt();
             
             int wpmStart = stats.indexOf("WPM:") + 4;
-            int wpm = stats.substring(wpmStart).toInt();
+            int keysMark = stats.indexOf("KEYS:");
+            int wpm = 0;
+            if (keysMark >= 0 && keysMark > wpmStart) {
+                wpm = stats.substring(wpmStart, keysMark).toInt();
+                keys_typed = (uint32_t) stats.substring(keysMark + 5).toInt();
+            } else {
+                wpm = stats.substring(wpmStart).toInt();
+            }
             
             updateSystemStats(cpu, ram, wpm);
             
+        } else if (command.startsWith("KEYS:")) {
+            keys_typed = (uint32_t) command.substring(5).toInt();
+            updateKeysDisplay();
+
         } else if (command.startsWith("TIME:")) {
             // Handle time updates from Python script
             String time_str = command.substring(5);
@@ -1192,6 +1229,12 @@ void createBongoCat() {
     lv_obj_set_style_text_font(time_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(time_label, lv_color_black(), 0);
     lv_obj_align(time_label, LV_ALIGN_TOP_RIGHT, STAT_TIME_X, STAT_TIME_Y);
+
+    keys_label = lv_label_create(screen);
+    lv_label_set_text(keys_label, "KEYS:0");
+    lv_obj_set_style_text_font(keys_label, &lv_font_unscii_16, 0);
+    lv_obj_set_style_text_color(keys_label, lv_color_black(), 0);
+    lv_obj_align(keys_label, LV_ALIGN_TOP_RIGHT, STAT_KEYS_X, STAT_KEYS_Y);
     
     // Initial render
     sprite_render_layers(&sprite_manager, cat_canvas, millis());

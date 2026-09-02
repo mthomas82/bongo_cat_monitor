@@ -16,9 +16,10 @@ import psutil
 import datetime
 from typing import Callable, Optional, Dict, Any
 
+from key_count import KeyCounter, is_countable_key
 from mimic import MimicController
 from port_detect import find_esp32_device, select_port, from_pyserial
-from protocol import idle_milestone_command
+from protocol import idle_milestone_command, stats_command
 
 class BongoCatEngine:
     """Bongo Cat engine using proven original implementation with configuration support"""
@@ -71,6 +72,10 @@ class BongoCatEngine:
         self.excitement_sent = False  # Extreme excitement after 10 min idle
         self.screensaver_sent = False
         self.mimic = MimicController(mode=getattr(self, "paw_mode", "groove"))
+        self.key_counter = KeyCounter()
+        self._key_held = set()
+        self._last_keys_sent = -1
+        self._last_keys_cmd = 0.0
         
         # EXACT ORIGINAL IMPLEMENTATION - Improved WPM calculation with stability optimizations
         self.typing_sessions = deque(maxlen=10)  # Reduced from 20 for faster response
@@ -135,6 +140,10 @@ class BongoCatEngine:
         """Set reference to system tray for status updates"""
         self.tray = tray
         print("🔗 Engine connected to system tray for status updates")
+        try:
+            tray.update_keys_typed(self.key_counter.total)
+        except Exception:
+            pass
     
     def _on_config_change(self, key: str, value: Any):
         """Handle configuration changes - NO SERIAL COMMANDS to prevent thread conflicts"""
@@ -287,9 +296,9 @@ class BongoCatEngine:
             
             # Send initial system stats
             cpu, ram = self.get_system_stats()
-            stats_command = f"STATS:CPU:{cpu},RAM:{ram},WPM:0"
-            self.send_command(stats_command)
-            print(f"📊 Initial stats: CPU {cpu}%, RAM {ram}%")
+            self.send_command(stats_command(cpu, ram, 0, keys=self.key_counter.total))
+            self.send_command(f"KEYS:{self.key_counter.total}")
+            print(f"📊 Initial stats: CPU {cpu}%, RAM {ram}%, KEYS {self.key_counter.total}")
             
             # Initialize timing variables
             self.last_stats_sent = time.time()
@@ -372,8 +381,7 @@ class BongoCatEngine:
         wpm = int(self.current_wpm)
         
         # Send system stats
-        stats_command = f"STATS:CPU:{cpu},RAM:{ram},WPM:{wpm}"
-        self.send_command(stats_command)
+        self.send_command(stats_command(cpu, ram, wpm, keys=self.key_counter.total))
         
         # Send current computer time (automatically synced)
         current_time = datetime.datetime.now().strftime("%H:%M")
@@ -395,8 +403,7 @@ class BongoCatEngine:
                 # Get instant CPU/RAM data from monitoring thread (no blocking!)
                 cpu, ram = self.get_system_stats()
                 wpm = int(self.current_wpm) if hasattr(self, 'current_wpm') else 0
-                stats_command = f"STATS:CPU:{cpu},RAM:{ram},WPM:{wpm}"
-                self.send_command(stats_command)
+                self.send_command(stats_command(cpu, ram, wpm, keys=self.key_counter.total))
                 self.last_stats_sent = current_time
             except Exception as e:
                 print(f"⚠️ Stats update error: {e}")
@@ -537,6 +544,16 @@ class BongoCatEngine:
             with self._data_lock:
                 self.keystroke_buffer.append(current_time)
                 self.last_keystroke_time = current_time
+                kid = str(key)
+                is_repeat = kid in self._key_held
+                if not is_repeat:
+                    self._key_held.add(kid)
+                    if is_countable_key(key):
+                        total = self.key_counter.add(1)
+                    else:
+                        total = None
+                else:
+                    total = None
                 
                 # Mark as actively typing
                 if not self.typing_active:
@@ -550,6 +567,9 @@ class BongoCatEngine:
                         self.tray.update_typing_status(True, self.current_wpm)
                     self.mimic.on_typing_active()
 
+            if total is not None and self.tray:
+                self.tray.update_keys_typed(total)
+
             for cmd in self.mimic.on_press(key, current_time):
                 self.send_command(cmd)
             
@@ -561,6 +581,8 @@ class BongoCatEngine:
 
     def on_key_release(self, key):
         try:
+            with self._data_lock:
+                self._key_held.discard(str(key))
             for cmd in self.mimic.on_release(key, time.time()):
                 self.send_command(cmd)
         except Exception as e:
@@ -748,6 +770,22 @@ class BongoCatEngine:
                         
         except Exception as e:
             print(f"❌ Animation update error: {e}")
+
+    def _flush_and_push_keys(self):
+        """Persist the lifetime count and push it to the CYD without blocking typing."""
+        try:
+            with self._data_lock:
+                self.key_counter.maybe_flush()
+                total = self.key_counter.total
+            now = time.time()
+            if total != self._last_keys_sent and (now - self._last_keys_cmd) >= 0.25:
+                self.send_command(f"KEYS:{total}")
+                self._last_keys_sent = total
+                self._last_keys_cmd = now
+                if self.tray:
+                    self.tray.update_keys_typed(total)
+        except Exception as e:
+            print(f"⚠️ Key count flush error: {e}")
     
     def update_animation_loop(self):
         """Background thread with optimized update logic and freeze detection - EXACT ORIGINAL IMPLEMENTATION"""
@@ -758,6 +796,7 @@ class BongoCatEngine:
                 
                 self.update_animation()  # Use the new optimized method
                 self.update_system_stats()  # Send system stats (CPU, RAM, WPM) periodically
+                self._flush_and_push_keys()
                 time.sleep(0.08)  # ~12 FPS - balanced performance
                 
             except Exception as e:
@@ -801,6 +840,8 @@ class BongoCatEngine:
         print(f"   • Activates at {self.fast_threshold}+ WPM")
         print("")
         print("📝 Start typing to see your cat react!")
+        print(f"🔢 Lifetime keys typed: {self.key_counter.total}")
+        print(f"   saved at {self.key_counter.path}")
         print("🛑 Press Ctrl+C to stop")
         print("-" * 65)
         
@@ -855,6 +896,11 @@ class BongoCatEngine:
         """Stop the typing monitor - EXACT ORIGINAL IMPLEMENTATION"""
         print("\n🛑 Stopping Bongo Cat monitor...")
         self.running = False
+        try:
+            self.key_counter.flush()
+            print(f"🔢 Keys typed saved: {self.key_counter.total}")
+        except Exception as e:
+            print(f"⚠️ Could not save key count: {e}")
         self.disconnect_serial()
         self.stop_system_monitor() # Stop the system monitor thread
         print("👋 Thank you for using Bongo Cat! Keep typing! ⌨️🐱")

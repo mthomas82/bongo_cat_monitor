@@ -1,91 +1,58 @@
 # Bongo Cat on a Mac
 
-The official Electron DMG is unsigned. On recent macOS it often shows
-"app is damaged", or it launches but never sees keystrokes. Use one of
-the two hosts below instead.
-
-Do this on Kelsey's MacBook, with the ESP32 plugged in over USB.
+You do not need Terminal, Python knowledge, or Xcode.
 
 ------------------------------------------------------------------------
-Path A — Python host (no Xcode)
+Do this
 
-1. Install Python 3 from python.org if `python3 --version` fails.
+1. Plug the cat into the Mac with a USB data cable (charge-only cables fail).
 
-2. Cheap Yellow Display boards often need a USB-serial driver:
-   - CH340:  https://github.com/WCHSoftGroup/ch34xser_macos
-   - CP2102: Silicon Labs CP210x VCP for Mac
-   After installing, unplug and replug the board.
+2. Get the project folder
+   - Easiest: unzip a download of this repo (Code → Download ZIP), or
+   - If we published a release: download BongoCat-macOS.zip, unzip it,
+     then skip to step 4 and open BongoCat.app instead.
 
-3. In Terminal:
+3. Double-click  Start Bongo Cat.command
+   First time, macOS may say it cannot be opened. Right-click the file →
+   Open → Open. That is a one-time Gatekeeper click.
 
-   cd /path/to/bongo_cat_monitor
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r bongo_cat_app/requirements_app.txt
+4. Follow the two pop-ups
+   - If Python is missing, click Get Python, install it (keep the
+     default checkbox that says "Add Python to PATH"), then double-click
+     Start Bongo Cat.command again.
+   - Allow Accessibility and Input Monitoring for Terminal (or python3).
+     Quit and start once more if the cat does not react to typing.
 
-   python3 tools/serial_smoke.py
-   # Expect a PING reply or at least the cat twitching from SPEED.
+5. Type. The cat should bongo. WPM prints in the Terminal window.
 
-   python3 bongo_cat_app/main.py --no-tray
-
-4. macOS will ask for Accessibility. Allow Terminal (or python3) in:
-   System Settings -> Privacy & Security -> Accessibility
-   and Input Monitoring. Fully quit and relaunch.
-
-5. Type. WPM should print and the cat should bongo.
-
-Or double-click `Start Bongo Cat.command` in this folder (same steps).
-
-Pass a port if auto-detect misses it:
-
-   python3 bongo_cat_app/main.py --no-tray --port /dev/cu.usbserial-0001
-
-List devices:  ls /dev/cu.usb*
+Keep Start Bongo Cat.command inside the unzipped folder. Later you only
+repeat step 3.
 
 ------------------------------------------------------------------------
-Path B — Native menu-bar app (best once it builds)
+If the cat does not move
 
-Needs Rust (rustup.rs) and Xcode Command Line Tools:
-
-   xcode-select --install
-   cd bongo-cat-macos
-   make
-   make run
-
-That produces build/BongoCat.app (ad-hoc signed). If Gatekeeper
-complains:
-
-   xattr -cr bongo-cat-macos/build/BongoCat.app
-   open bongo-cat-macos/build/BongoCat.app
-
-Grant Accessibility to "Bongo Cat", then restart the app.
-
-This client is the one multiple Mac users confirmed works for WPM.
-Source: Dalton Rooney, vendored in bongo-cat-macos/ (see THIRD_PARTY.md).
-The Makefile targets the Mac you build on (Intel or Apple Silicon).
+- Try another USB cable, then unplug and replug.
+- In the first-run dialog choose Driver help (CH340 is the usual chip).
+- The board must already have the Bongo Cat firmware (web flasher or
+  Arduino upload of bongo_cat.ino).
 
 ------------------------------------------------------------------------
-Do not use for now
+Lifetime keys typed
 
-- GitHub Releases DMG from vostoklabs (unsigned Electron)
-- sudo open /Applications/Bongo\\ Cat.app  (does not fix TCC)
-
-------------------------------------------------------------------------
-Sprite studio (new cat art + screen layout)
-
-Does not start with the Python host. Run without --no-tray, then:
-
-  tray → Sprite editor → Start / Stop / Open in browser
-  Settings → Sprite editor
-
-Or:  python3 tools/sprite_studio.py --no-browser
-
-Details: tools/sprite_studio/README.md
+Counted while you type. Saved at
+~/Library/Application Support/BongoCat/keys_typed.json
+so quitting or restarting the Mac does not reset it.
 
 ------------------------------------------------------------------------
-If serial_smoke.py sees no port
+Optional: native menu-bar app
 
-- Try another USB cable (charge-only cables fail)
-- Install CH340/CP2102 driver, reboot
-- ls /dev/cu.*  and pass --port
-- The board must already have bongo_cat.ino (or the web flasher) on it
+If you have a BongoCat.app from GitHub Releases, right-click → Open,
+grant Accessibility to "Bongo Cat", and leave it in the menu bar.
+
+Building that app yourself needs Rust + Xcode Command Line Tools:
+
+  xcode-select --install
+  cd bongo-cat-macos && make && make run
+
+Do not use the old unsigned Electron DMG from vostoklabs. It often
+shows "app is damaged" or never sees keystrokes.

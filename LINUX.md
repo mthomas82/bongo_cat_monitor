@@ -23,6 +23,8 @@ Serial
 Real typing needs a graphical session (X11/Wayland). Headless SSH will
 not feed pynput. Use the testbench instead.
 
+Lifetime keys typed are saved at ~/.config/BongoCat/keys_typed.json.
+
 ------------------------------------------------------------------------
 Testbench (spoof typing onto the CYD)
 

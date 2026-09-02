@@ -107,6 +107,7 @@ def default_layout() -> dict:
         "ram": {"x": 5, "y": 25, "show": True},
         "wpm": {"x": 5, "y": 45, "show": True},
         "time": {"x": -5, "y": 5, "show": True},
+        "keys": {"x": -5, "y": 25, "show": True},
         "bg": [255, 255, 255],
     }
 
@@ -117,6 +118,7 @@ def write_layout_header(layout: dict) -> None:
     ram = layout["ram"]
     wpm = layout["wpm"]
     time = layout["time"]
+    keys = layout.get("keys") or {"x": -5, "y": 25}
     LAYOUT_H.write_text(
         "\n".join(
             [
@@ -133,6 +135,8 @@ def write_layout_header(layout: dict) -> None:
                 f"#define STAT_WPM_Y {int(wpm['y'])}",
                 f"#define STAT_TIME_X {int(time['x'])}",
                 f"#define STAT_TIME_Y {int(time['y'])}",
+                f"#define STAT_KEYS_X {int(keys['x'])}",
+                f"#define STAT_KEYS_Y {int(keys['y'])}",
                 f"#define SCREEN_BG_R {int(bg[0])}",
                 f"#define SCREEN_BG_G {int(bg[1])}",
                 f"#define SCREEN_BG_B {int(bg[2])}",
