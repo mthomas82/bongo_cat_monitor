@@ -48,12 +48,35 @@ uint32_t last_command_time = 0;   // Track when last command received
 #define TYPING_TIMEOUT_MS 2000    // Stop typing animation after 2 seconds of no commands
 #define PYTHON_TIMEOUT_MS 5000    // Fall back to auto mode after 5 seconds
 #define EXCITEMENT_IDLE_MS (10UL * 60UL * 1000UL)  // Extreme excitement after 10 min idle
+#define SCREENSAVER_IDLE_MS (20UL * 60UL * 1000UL)
+#define SCREENSAVER_ZOOM 512
+#define SCREENSAVER_MARGIN_TOP 40
+#define SCREENSAVER_STEP_MS 40
+#define MIMIC_PAW_HOLD_MS 70
+#define REACT_TYPO_MS 800
+#define REACT_SAVE_MS 400
+#define REACT_GROOM_MS 700
+#define REACT_NONE 0
+#define REACT_TYPO 1
+#define REACT_SAVE 2
+#define REACT_GROOM 3
 
 // Simplified animation performance (removed aggressive frame limiting)
 uint32_t frame_skip_counter = 0;
 
 // Cat positioning (restored to original working method)
 #define CAT_SIZE 64   // Base sprite size
+
+bool screensaver_active = false;
+int screensaver_x = 0;
+int screensaver_y = SCREENSAVER_MARGIN_TOP;
+int screensaver_vx = 1;
+int screensaver_vy = 1;
+uint32_t screensaver_last_move = 0;
+
+void screensaver_enter();
+void screensaver_exit();
+void screensaver_update(uint32_t current_time);
 
 // System stats display
 lv_obj_t * screen = NULL;
@@ -225,6 +248,10 @@ void updateDisplayVisibility() {
     }
 }
 
+void start_reaction(sprite_manager_t* manager, uint8_t kind, uint32_t current_time, uint32_t duration_ms);
+void apply_mimic_tap(sprite_manager_t* manager, uint8_t paw, uint32_t current_time);
+void apply_reaction_overlay(sprite_manager_t* manager, uint32_t current_time);
+
 // Handle serial commands from Python script
 void handleSerialCommands() {
     if (Serial.available()) {
@@ -236,6 +263,12 @@ void handleSerialCommands() {
         python_control_mode = true;        // Ensure Python control is active
         
         if (command.startsWith("SPEED:")) {
+            if (sprite_manager.mimic_mode) {
+                last_command_time = current_time;
+                python_control_mode = true;
+                sprite_manager.idle_progression_enabled = false;
+                Serial.println("SPEED ignored in MIMIC");
+            } else {
             // Handle speed commands with enhanced logic  
             String speed_str = command.substring(6);
             uint16_t speed = speed_str.toInt();
@@ -273,10 +306,12 @@ void handleSerialCommands() {
             last_command_time = current_time;
             python_control_mode = true;
             sprite_manager.idle_progression_enabled = false;
+            }
         } else if (command == "STOP") {
             // Explicit stop command - better than IDLE
             sprite_manager_set_state(&sprite_manager, ANIM_STATE_IDLE_STAGE1, current_time);
             sprite_manager.idle_progression_enabled = false; // Keep disabled until IDLE_START
+            sprite_manager.mimic_paw_until = 0;
             python_control_mode = true;
             last_command_time = current_time;
             Serial.println("🛑 Received STOP command");
@@ -284,8 +319,9 @@ void handleSerialCommands() {
         } else if (command == "IDLE_START") {
             // Enable idle progression when Python detects no typing
             python_control_mode = false;  // Let Arduino handle idle progression
-            if (sprite_manager.current_state == ANIM_STATE_EXCITED) {
-                Serial.println("😴 IDLE_START ignored — already excited");
+            if (sprite_manager.current_state == ANIM_STATE_EXCITED ||
+                sprite_manager.current_state == ANIM_STATE_SCREENSAVER) {
+                Serial.println("😴 IDLE_START ignored — already in long-idle state");
             } else {
                 sprite_manager_set_state(&sprite_manager, ANIM_STATE_IDLE_STAGE1, current_time);
                 sprite_manager.idle_progression_enabled = true;  // Enable automatic progression
@@ -296,6 +332,12 @@ void handleSerialCommands() {
             python_control_mode = true;
             last_command_time = current_time;
             Serial.println("Excited after long idle");
+            
+        } else if (command == "SCREENSAVER") {
+            sprite_manager_set_state(&sprite_manager, ANIM_STATE_SCREENSAVER, current_time);
+            python_control_mode = true;
+            last_command_time = current_time;
+            Serial.println("Screensaver after 20 min idle");
             
         } else if (command == "IDLE") {
             // Compatibility with old command
@@ -314,6 +356,29 @@ void handleSerialCommands() {
             // Disable streak mode
             sprite_manager.is_streak_mode = false;
             Serial.println("😐 Streak mode disabled - normal face");
+        } else if (command == "MODE:MIMIC") {
+            sprite_manager.mimic_mode = true;
+            sprite_manager.paw_animation_active = false;
+            sprite_manager.mimic_paw_until = 0;
+            Serial.println("Mimic mode — per-key TAP");
+        } else if (command == "MODE:GROOVE") {
+            sprite_manager.mimic_mode = false;
+            sprite_manager.mimic_paw_until = 0;
+            Serial.println("Groove mode — WPM SPEED loop");
+        } else if (command.startsWith("TAP:")) {
+            if (sprite_manager.mimic_mode) {
+                uint8_t paw = (command.length() >= 5 && command.charAt(4) == 'R') ? 2 : 1;
+                apply_mimic_tap(&sprite_manager, paw, current_time);
+            }
+        } else if (command == "REACT:TYPO") {
+            start_reaction(&sprite_manager, REACT_TYPO, current_time, REACT_TYPO_MS);
+            Serial.println("Typo tantrum");
+        } else if (command == "REACT:SAVE") {
+            start_reaction(&sprite_manager, REACT_SAVE, current_time, REACT_SAVE_MS);
+            Serial.println("Save sparkle");
+        } else if (command == "REACT:GROOM") {
+            start_reaction(&sprite_manager, REACT_GROOM, current_time, REACT_GROOM_MS);
+            Serial.println("Groom fidget");
         } else if (command.startsWith("STATS:")) {
             // Parse stats: STATS:CPU:45,RAM:67,WPM:23
             String stats = command.substring(6);
@@ -370,6 +435,8 @@ void handleSerialCommands() {
                 sprite_manager_set_state(&sprite_manager, ANIM_STATE_EAR_TWITCH, current_time);
             } else if (anim == "EXCITED") {
                 sprite_manager_set_state(&sprite_manager, ANIM_STATE_EXCITED, current_time);
+            } else if (anim == "SCREENSAVER") {
+                sprite_manager_set_state(&sprite_manager, ANIM_STATE_SCREENSAVER, current_time);
             }
             Serial.println("PONG");
             
@@ -468,6 +535,11 @@ void sprite_manager_init(sprite_manager_t* manager) {
     manager->blinking = false;
     manager->ear_twitch_start_time = 0;
     manager->ear_twitching = false;
+    manager->mimic_mode = false;
+    manager->mimic_paw_until = 0;
+    manager->mimic_paw = 0;
+    manager->reaction_until = 0;
+    manager->reaction_kind = REACT_NONE;
     
     Serial.println("🐱 Sprite manager initialized");
 }
@@ -519,20 +591,27 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
         Serial.println("⚠️ Python timeout - enabling auto mode");
     }
     
-    // Extreme excitement after 10 minutes with no typing (host also sends EXCITED)
-    if (manager->current_state != ANIM_STATE_EXCITED &&
-        manager->current_state != ANIM_STATE_TYPING_SLOW &&
+    // Long-idle milestones (host also sends EXCITED / SCREENSAVER)
+    if (manager->current_state != ANIM_STATE_TYPING_SLOW &&
         manager->current_state != ANIM_STATE_TYPING_NORMAL &&
         manager->current_state != ANIM_STATE_TYPING_FAST &&
         manager->current_state != ANIM_STATE_TYPING_STREAK &&
-        manager->last_typing_time > 0 &&
-        (current_time - manager->last_typing_time) >= EXCITEMENT_IDLE_MS) {
-        sprite_manager_set_state(manager, ANIM_STATE_EXCITED, current_time);
+        manager->last_typing_time > 0) {
+        uint32_t idle_ms = current_time - manager->last_typing_time;
+        if (idle_ms >= SCREENSAVER_IDLE_MS &&
+            manager->current_state != ANIM_STATE_SCREENSAVER) {
+            sprite_manager_set_state(manager, ANIM_STATE_SCREENSAVER, current_time);
+        } else if (idle_ms >= EXCITEMENT_IDLE_MS &&
+                   manager->current_state != ANIM_STATE_EXCITED &&
+                   manager->current_state != ANIM_STATE_SCREENSAVER) {
+            sprite_manager_set_state(manager, ANIM_STATE_EXCITED, current_time);
+        }
     }
 
     // Handle automatic idle progression only if enabled
     if ((manager->idle_progression_enabled || !python_control_mode) &&
-        manager->current_state != ANIM_STATE_EXCITED) {
+        manager->current_state != ANIM_STATE_EXCITED &&
+        manager->current_state != ANIM_STATE_SCREENSAVER) {
         // Calculate adaptive timing based on current sleep timeout setting
         unsigned long stage1_duration, stage2_duration, stage3_duration;
         calculateSleepStageTiming(settings.sleep_timeout_minutes, &stage1_duration, &stage2_duration, &stage3_duration);
@@ -553,7 +632,23 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
     }
     
     // Handle paw animations - 4-step pattern: left_down → both_up → right_down → both_up
-    if (manager->paw_animation_active) {
+    if (manager->mimic_mode) {
+        if (manager->mimic_paw_until != 0 && current_time < manager->mimic_paw_until) {
+            if (manager->mimic_paw == 2) {
+                manager->current_sprites[LAYER_PAWS] = &rightpawdown;
+                manager->current_sprites[LAYER_EFFECTS] = manager->is_streak_mode ? &right_click_effect : NULL;
+            } else {
+                manager->current_sprites[LAYER_PAWS] = &leftpawdown;
+                manager->current_sprites[LAYER_EFFECTS] = manager->is_streak_mode ? &left_click_effect : NULL;
+            }
+        } else if (manager->mimic_paw_until != 0 && current_time >= manager->mimic_paw_until) {
+            manager->mimic_paw_until = 0;
+            manager->current_sprites[LAYER_PAWS] = &twopawsup;
+            if (manager->current_state != ANIM_STATE_EXCITED) {
+                manager->current_sprites[LAYER_EFFECTS] = NULL;
+            }
+        }
+    } else if (manager->paw_animation_active) {
         // Trust Python's speed calculations - no additional rate limiting
         if (current_time - manager->paw_timer >= manager->animation_speed_ms) {
             manager->paw_frame = (manager->paw_frame + 1) % 4;  // 4-step pattern
@@ -609,10 +704,13 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
         } else if (manager->current_state >= ANIM_STATE_IDLE_STAGE2 && 
                    manager->current_state <= ANIM_STATE_IDLE_STAGE4) {
             manager->current_sprites[LAYER_PAWS] = NULL;  // Hidden paws for stages 2-4
+        } else if (manager->current_state == ANIM_STATE_SCREENSAVER) {
+            manager->current_sprites[LAYER_PAWS] = NULL;
         }
         
-        // Only clear effects if NOT in IDLE_STAGE4 (which needs sleepy effects)
-        if (manager->current_state != ANIM_STATE_IDLE_STAGE4) {
+        // Only clear effects if NOT in IDLE_STAGE4 / screensaver (sleepy Zzz)
+        if (manager->current_state != ANIM_STATE_IDLE_STAGE4 &&
+            manager->current_state != ANIM_STATE_SCREENSAVER) {
             manager->current_sprites[LAYER_EFFECTS] = NULL;  // Clear typing effects
         }
     }
@@ -624,8 +722,10 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
             manager->current_sprites[LAYER_EFFECTS] = (manager->effect_frame == 0) ? &excited1 : &excited2;
             manager->effect_timer = current_time;
         }
-    } else if (manager->current_state == ANIM_STATE_IDLE_STAGE4) {
-        if (current_time - manager->effect_timer > 1000) { // Change effect every second
+    } else if (manager->current_state == ANIM_STATE_IDLE_STAGE4 ||
+               manager->current_state == ANIM_STATE_SCREENSAVER) {
+        uint32_t zzz_ms = (manager->current_state == ANIM_STATE_SCREENSAVER) ? 1600 : 1000;
+        if (current_time - manager->effect_timer > zzz_ms) {
             manager->effect_frame = (manager->effect_frame + 1) % 3;
             switch (manager->effect_frame) {
                 case 0: manager->current_sprites[LAYER_EFFECTS] = &sleepy1; break;
@@ -638,9 +738,12 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
     
     // Handle automatic blinking (only when awake, not during sleep)
     // Only blink when not sleeping (stages 3 and 4 have sleepy face, no blinking)
-    bool can_blink = (manager->current_state != ANIM_STATE_IDLE_STAGE3 && 
+    bool in_reaction = (manager->reaction_kind != REACT_NONE && current_time < manager->reaction_until);
+    bool can_blink = (!in_reaction &&
+                      manager->current_state != ANIM_STATE_IDLE_STAGE3 && 
                       manager->current_state != ANIM_STATE_IDLE_STAGE4 &&
-                      manager->current_state != ANIM_STATE_EXCITED);
+                      manager->current_state != ANIM_STATE_EXCITED &&
+                      manager->current_state != ANIM_STATE_SCREENSAVER);
     
     if (!manager->blinking && current_time >= manager->blink_timer && can_blink) {
         // Start blink
@@ -652,7 +755,8 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
         manager->blinking = false;
         // Restore normal face after blink based on current state and streak mode
         if (manager->current_state == ANIM_STATE_IDLE_STAGE3 || 
-            manager->current_state == ANIM_STATE_IDLE_STAGE4) {
+            manager->current_state == ANIM_STATE_IDLE_STAGE4 ||
+            manager->current_state == ANIM_STATE_SCREENSAVER) {
             manager->current_sprites[LAYER_FACE] = &sleepy_face;
         } else if (manager->current_state == ANIM_STATE_EXCITED) {
             manager->current_sprites[LAYER_FACE] = &excited_face;
@@ -671,7 +775,7 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
     }
     
     // Handle ear twitch
-    if (!manager->ear_twitching && current_time >= manager->ear_twitch_timer) {
+    if (!in_reaction && !manager->ear_twitching && current_time >= manager->ear_twitch_timer) {
         // Start ear twitch
         manager->ear_twitching = true;
         manager->ear_twitch_start_time = current_time;
@@ -683,6 +787,148 @@ void sprite_manager_update(sprite_manager_t* manager, uint32_t current_time) {
         // Set next ear twitch time
         manager->ear_twitch_timer = current_time + random(10000, 30000);
     }
+
+    apply_reaction_overlay(manager, current_time);
+}
+
+void screensaver_enter() {
+    if (cat_canvas == NULL || screensaver_active) {
+        return;
+    }
+    screensaver_active = true;
+    lv_img_set_zoom(cat_canvas, SCREENSAVER_ZOOM);
+    screensaver_x = 40;
+    screensaver_y = SCREENSAVER_MARGIN_TOP + 20;
+    screensaver_vx = 1;
+    screensaver_vy = 1;
+    screensaver_last_move = millis();
+    lv_obj_align(cat_canvas, LV_ALIGN_TOP_LEFT, screensaver_x, screensaver_y);
+}
+
+void screensaver_exit() {
+    if (!screensaver_active) {
+        return;
+    }
+    screensaver_active = false;
+    if (cat_canvas == NULL) {
+        return;
+    }
+    lv_img_set_zoom(cat_canvas, CAT_ZOOM);
+    lv_obj_align(cat_canvas, LV_ALIGN_CENTER, CAT_OFFSET_X, CAT_OFFSET_Y);
+}
+
+void screensaver_update(uint32_t current_time) {
+    if (!screensaver_active || cat_canvas == NULL) {
+        return;
+    }
+    if (current_time - screensaver_last_move < SCREENSAVER_STEP_MS) {
+        return;
+    }
+    screensaver_last_move = current_time;
+    int size = (CAT_SIZE * SCREENSAVER_ZOOM) / 256;
+    screensaver_x += screensaver_vx;
+    screensaver_y += screensaver_vy;
+    if (screensaver_x <= 0) {
+        screensaver_x = 0;
+        screensaver_vx = 1;
+    }
+    if (screensaver_y <= SCREENSAVER_MARGIN_TOP) {
+        screensaver_y = SCREENSAVER_MARGIN_TOP;
+        screensaver_vy = 1;
+    }
+    if (screensaver_x + size >= SCREEN_WIDTH) {
+        screensaver_x = SCREEN_WIDTH - size;
+        screensaver_vx = -1;
+    }
+    if (screensaver_y + size >= SCREEN_HEIGHT) {
+        screensaver_y = SCREEN_HEIGHT - size;
+        screensaver_vy = -1;
+    }
+    lv_obj_set_pos(cat_canvas, screensaver_x, screensaver_y);
+}
+
+void start_reaction(sprite_manager_t* manager, uint8_t kind, uint32_t current_time, uint32_t duration_ms) {
+    manager->reaction_kind = kind;
+    manager->reaction_until = current_time + duration_ms;
+    manager->effect_timer = current_time;
+    manager->effect_frame = 0;
+}
+
+void apply_mimic_tap(sprite_manager_t* manager, uint8_t paw, uint32_t current_time) {
+    manager->last_typing_time = current_time;
+    manager->idle_progression_enabled = false;
+    manager->paw_animation_active = false;
+    manager->mimic_paw = paw;
+    manager->mimic_paw_until = current_time + MIMIC_PAW_HOLD_MS;
+    if (paw == 2) {
+        manager->current_sprites[LAYER_PAWS] = &rightpawdown;
+    } else {
+        manager->current_sprites[LAYER_PAWS] = &leftpawdown;
+    }
+    if (manager->current_state == ANIM_STATE_IDLE_STAGE2 ||
+        manager->current_state == ANIM_STATE_IDLE_STAGE3 ||
+        manager->current_state == ANIM_STATE_IDLE_STAGE4 ||
+        manager->current_state == ANIM_STATE_EXCITED ||
+        manager->current_state == ANIM_STATE_SCREENSAVER) {
+        if (manager->current_state == ANIM_STATE_SCREENSAVER) {
+            screensaver_exit();
+        }
+        manager->current_state = ANIM_STATE_IDLE_STAGE1;
+        manager->state_start_time = current_time;
+        manager->current_sprites[LAYER_BODY] = &standardbody1;
+        manager->current_sprites[LAYER_TABLE] = &table1;
+        manager->current_sprites[LAYER_EFFECTS] = NULL;
+    }
+    manager->current_sprites[LAYER_FACE] = manager->is_streak_mode ? &happy_face : &stock_face;
+}
+
+void apply_reaction_overlay(sprite_manager_t* manager, uint32_t current_time) {
+    if (manager->reaction_kind == REACT_NONE) {
+        return;
+    }
+    if (current_time >= manager->reaction_until) {
+        manager->reaction_kind = REACT_NONE;
+        manager->current_sprites[LAYER_BODY] = &standardbody1;
+        if (manager->current_state == ANIM_STATE_IDLE_STAGE3 ||
+            manager->current_state == ANIM_STATE_IDLE_STAGE4 ||
+            manager->current_state == ANIM_STATE_SCREENSAVER) {
+            manager->current_sprites[LAYER_FACE] = &sleepy_face;
+        } else if (manager->current_state == ANIM_STATE_EXCITED) {
+            manager->current_sprites[LAYER_FACE] = &excited_face;
+        } else if (manager->is_streak_mode) {
+            manager->current_sprites[LAYER_FACE] = &happy_face;
+        } else {
+            manager->current_sprites[LAYER_FACE] = &stock_face;
+        }
+        if (!manager->mimic_mode && !manager->paw_animation_active) {
+            if (manager->current_state == ANIM_STATE_IDLE_STAGE1) {
+                manager->current_sprites[LAYER_PAWS] = &twopawsup;
+            } else if (manager->current_state >= ANIM_STATE_IDLE_STAGE2 &&
+                       manager->current_state <= ANIM_STATE_IDLE_STAGE4) {
+                manager->current_sprites[LAYER_PAWS] = NULL;
+            }
+            if (manager->current_state != ANIM_STATE_IDLE_STAGE4 &&
+                manager->current_state != ANIM_STATE_EXCITED) {
+                manager->current_sprites[LAYER_EFFECTS] = NULL;
+            }
+        }
+        return;
+    }
+    if (manager->reaction_kind == REACT_TYPO) {
+        manager->current_sprites[LAYER_FACE] = &blink_face;
+        manager->current_sprites[LAYER_PAWS] = &twopawsup;
+        manager->current_sprites[LAYER_EFFECTS] = NULL;
+    } else if (manager->reaction_kind == REACT_SAVE) {
+        manager->current_sprites[LAYER_FACE] = &happy_face;
+        if (current_time - manager->effect_timer > 120) {
+            manager->effect_frame = (manager->effect_frame + 1) % 2;
+            manager->effect_timer = current_time;
+        }
+        manager->current_sprites[LAYER_EFFECTS] = (manager->effect_frame == 0) ? &excited1 : &excited2;
+    } else if (manager->reaction_kind == REACT_GROOM) {
+        manager->current_sprites[LAYER_BODY] = &bodyeartwitch;
+        manager->current_sprites[LAYER_PAWS] = &leftpawdown;
+    }
 }
 
 void sprite_manager_set_state(sprite_manager_t* manager, animation_state_t new_state, uint32_t current_time) {
@@ -690,6 +936,10 @@ void sprite_manager_set_state(sprite_manager_t* manager, animation_state_t new_s
     Serial.print(get_state_name(manager->current_state));
     Serial.print(" → ");
     Serial.println(get_state_name(new_state));
+
+    if (manager->current_state == ANIM_STATE_SCREENSAVER && new_state != ANIM_STATE_SCREENSAVER) {
+        screensaver_exit();
+    }
     
     manager->current_state = new_state;
     manager->state_start_time = current_time;
@@ -799,6 +1049,18 @@ void sprite_manager_set_state(sprite_manager_t* manager, animation_state_t new_s
             manager->idle_progression_enabled = false;
             Serial.println("Extreme excitement — 10 min idle");
             break;
+
+        case ANIM_STATE_SCREENSAVER:
+            manager->current_sprites[LAYER_FACE] = &sleepy_face;
+            manager->current_sprites[LAYER_PAWS] = NULL;
+            manager->current_sprites[LAYER_EFFECTS] = &sleepy1;
+            manager->paw_animation_active = false;
+            manager->effect_timer = current_time;
+            manager->effect_frame = 0;
+            manager->idle_progression_enabled = false;
+            screensaver_enter();
+            Serial.println("Screensaver — drifting asleep cat");
+            break;
     }
     
     // Reset idle progression when entering any typing state
@@ -840,6 +1102,7 @@ const char* get_state_name(animation_state_t state) {
         case ANIM_STATE_TYPING_FAST: return "TYPING_FAST";
         case ANIM_STATE_TYPING_STREAK: return "TYPING_STREAK";  // Keep for compatibility but unused
         case ANIM_STATE_EXCITED: return "EXCITED";
+        case ANIM_STATE_SCREENSAVER: return "SCREENSAVER";
         default: return "UNKNOWN";
     }
 }
@@ -961,6 +1224,8 @@ void loop() {
         
         last_animation_update = current_time;
     }
+
+    screensaver_update(current_time);
     
     // Update time display every second
     static uint32_t last_time_update = 0;

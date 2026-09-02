@@ -13,6 +13,8 @@ MIN_SPEED_MS = 30
 MAX_SPEED_MS = 500
 STREAK_WPM = 65
 CHARS_PER_WORD = 5.0
+EXCITEMENT_IDLE_S = 600
+SCREENSAVER_IDLE_S = 1200
 
 
 def wpm_to_speed_ms(wpm: float) -> int:
@@ -44,6 +46,37 @@ def typing_commands(wpm: float, cpu: int = 0, ram: int = 0) -> List[str]:
     cmds.append(f"SPEED:{wpm_to_speed_ms(wpm)}")
     cmds.extend(streak_commands(wpm))
     return cmds
+
+
+def mode_command(mode: str) -> str:
+    if str(mode).strip().lower() == "mimic":
+        return "MODE:MIMIC"
+    return "MODE:GROOVE"
+
+
+def tap_command(paw: str) -> str:
+    side = str(paw).strip().upper()
+    if side not in ("L", "R"):
+        side = "L"
+    return f"TAP:{side}"
+
+
+def reaction_command(kind: str) -> str:
+    name = str(kind).strip().upper()
+    if name not in ("TYPO", "SAVE", "GROOM"):
+        raise ValueError(f"unknown reaction: {kind}")
+    return f"REACT:{name}"
+
+
+def idle_milestone_command(
+    idle_s: float, excitement_sent: bool, screensaver_sent: bool
+) -> Optional[str]:
+    """Host command for long keyboard absence. Screensaver wins if both are due."""
+    if idle_s >= SCREENSAVER_IDLE_S and not screensaver_sent:
+        return "SCREENSAVER"
+    if idle_s >= EXCITEMENT_IDLE_S and not excitement_sent:
+        return "EXCITED"
+    return None
 
 
 def keystroke_interval_seconds(wpm: float) -> Optional[float]:

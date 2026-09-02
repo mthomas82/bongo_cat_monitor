@@ -7,8 +7,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "bongo_cat_app"))
 
 from protocol import (  # noqa: E402
+    idle_milestone_command,
     keystroke_interval_seconds,
+    mode_command,
+    reaction_command,
     streak_commands,
+    tap_command,
     typing_commands,
     wpm_to_speed_ms,
 )
@@ -51,6 +55,40 @@ class StreakHelperTests(unittest.TestCase):
     def test_threshold(self):
         self.assertEqual(streak_commands(64), ["STREAK_OFF"])
         self.assertEqual(streak_commands(65), ["STREAK_ON"])
+
+
+class ModeTapReactionTests(unittest.TestCase):
+    def test_mode_command_groove_and_mimic(self):
+        self.assertEqual(mode_command("groove"), "MODE:GROOVE")
+        self.assertEqual(mode_command("mimic"), "MODE:MIMIC")
+
+    def test_mode_command_unknown_falls_back_to_groove(self):
+        self.assertEqual(mode_command("banana"), "MODE:GROOVE")
+
+    def test_tap_left_and_right(self):
+        self.assertEqual(tap_command("L"), "TAP:L")
+        self.assertEqual(tap_command("R"), "TAP:R")
+
+    def test_reaction_commands(self):
+        self.assertEqual(reaction_command("typo"), "REACT:TYPO")
+        self.assertEqual(reaction_command("save"), "REACT:SAVE")
+        self.assertEqual(reaction_command("groom"), "REACT:GROOM")
+
+
+class IdleMilestoneTests(unittest.TestCase):
+    def test_under_ten_minutes_is_silent(self):
+        self.assertIsNone(idle_milestone_command(599, False, False))
+
+    def test_ten_minutes_sends_excited_once(self):
+        self.assertEqual(idle_milestone_command(600, False, False), "EXCITED")
+        self.assertIsNone(idle_milestone_command(600, True, False))
+
+    def test_twenty_minutes_sends_screensaver(self):
+        self.assertEqual(idle_milestone_command(1200, True, False), "SCREENSAVER")
+        self.assertIsNone(idle_milestone_command(1200, True, True))
+
+    def test_jump_to_twenty_minutes_skips_excitement(self):
+        self.assertEqual(idle_milestone_command(1200, False, False), "SCREENSAVER")
 
 
 class KeystrokeTimingTests(unittest.TestCase):

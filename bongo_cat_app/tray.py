@@ -183,6 +183,21 @@ class BongoCatSystemTray:
             ),
 
             item(
+                "Animation",
+                pystray.Menu(
+                    item(
+                        "Groove (WPM loop)",
+                        self.set_paw_mode_groove,
+                        checked=lambda item: self.get_paw_mode() == "groove",
+                    ),
+                    item(
+                        "Mimic (per-key)",
+                        self.set_paw_mode_mimic,
+                        checked=lambda item: self.get_paw_mode() == "mimic",
+                    ),
+                ),
+            ),
+            item(
                 "Sprite editor",
                 pystray.Menu(
                     item(
@@ -238,6 +253,29 @@ class BongoCatSystemTray:
     
 
     
+    def get_paw_mode(self):
+        if self.config:
+            return self.config.get_behavior_settings().get("paw_mode", "groove")
+        if self.engine:
+            return getattr(self.engine, "paw_mode", "groove")
+        return "groove"
+
+    def set_paw_mode_groove(self, item=None):
+        self._set_paw_mode("groove")
+
+    def set_paw_mode_mimic(self, item=None):
+        self._set_paw_mode("mimic")
+
+    def _set_paw_mode(self, mode):
+        if self.config:
+            self.config.set_setting("behavior", "paw_mode", mode)
+            self.config.save_config()
+        if self.engine:
+            for cmd in self.engine.mimic.set_mode(mode):
+                self.engine.send_command(cmd)
+            self.engine.paw_mode = mode
+        self.show_notification("Animation", f"Paw mode: {mode}")
+
     def get_startup_setting(self):
         """Get startup setting from config"""
         if self.config:

@@ -37,7 +37,8 @@ class ConfigManager:
             },
             "behavior": {
                 "sleep_timeout_minutes": 1,
-                "idle_timeout_seconds": 1.0
+                "idle_timeout_seconds": 1.0,
+                "paw_mode": "groove"
             },
             "connection": {
                 "com_port": "AUTO",
@@ -98,6 +99,11 @@ class ConfigManager:
 
             if not (0.1 <= behavior.get("idle_timeout_seconds", 0) <= 10.0):
                 print("❌ Invalid idle_timeout_seconds (0.1-10.0)")
+                return False
+
+            paw_mode = behavior.get("paw_mode", "groove")
+            if paw_mode not in ("groove", "mimic"):
+                print("❌ Invalid paw_mode (groove|mimic)")
                 return False
             
             # Validate connection settings

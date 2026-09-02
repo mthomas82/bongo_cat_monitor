@@ -86,7 +86,8 @@ typedef enum {
     ANIM_STATE_TYPING_STREAK,       // Happy face, ultra-fast paws
     ANIM_STATE_BLINKING,            // Brief blink animation
     ANIM_STATE_EAR_TWITCH,          // Body sprite swap
-    ANIM_STATE_EXCITED              // 10 min keyboard idle — extreme excitement
+    ANIM_STATE_EXCITED,             // 10 min keyboard idle — extreme excitement
+    ANIM_STATE_SCREENSAVER          // 20 min idle — drifting asleep cat
 } animation_state_t;
 
 // Sprite management structure
@@ -114,6 +115,11 @@ typedef struct {
     bool blinking;                  // Currently blinking
     uint32_t ear_twitch_start_time; // When current ear twitch started  
     bool ear_twitching;             // Currently ear twitching
+    bool mimic_mode;                // Per-key TAP driver (not WPM SPEED loop)
+    uint32_t mimic_paw_until;
+    uint8_t mimic_paw;              // 1 = left, 2 = right
+    uint32_t reaction_until;
+    uint8_t reaction_kind;          // REACT_NONE/TYPO/SAVE/GROOM
 } sprite_manager_t;
 
 // Function declarations

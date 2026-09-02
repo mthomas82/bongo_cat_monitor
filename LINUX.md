@@ -40,6 +40,15 @@ Firmware stops typing animation after ~2s without SPEED/STOP, so the
 testbench keepalives every 1s.
 
 ------------------------------------------------------------------------
+Paw modes (host tray → Animation, or Settings → Behavior)
+
+Groove: original WPM SPEED loop (default).
+Mimic: one TAP:L/TAP:R per key. Requires this firmware on the CYD.
+Reactions (both modes): REACT:TYPO (backspace burst), REACT:SAVE (Ctrl/Cmd+S),
+REACT:GROOM (short idle fidget).
+20 min keyboard idle: SCREENSAVER (sleeping cat drifts around the display).
+
+------------------------------------------------------------------------
 If serial_smoke sees no port
 
   dmesg | tail

@@ -211,6 +211,15 @@ class BongoCatSettingsGUI:
         
         self.widgets['idle_label'] = ttk.Label(idle_frame, text="3.0 seconds", width=12)
         self.widgets['idle_label'].pack(side='right')
+
+        ttk.Label(anim_group, text="Paw animation mode:").pack(anchor='w', pady=(12, 5))
+        self.widgets['paw_mode'] = tk.StringVar(value="groove")
+        ttk.Radiobutton(anim_group, text="Groove (WPM loop — original)",
+                       variable=self.widgets['paw_mode'], value="groove",
+                       command=self.on_setting_changed).pack(anchor='w', pady=2)
+        ttk.Radiobutton(anim_group, text="Mimic (one paw tap per key)",
+                       variable=self.widgets['paw_mode'], value="mimic",
+                       command=self.on_setting_changed).pack(anchor='w', pady=2)
     
     def create_connection_tab(self, notebook):
         """Create the connection settings tab"""
@@ -417,6 +426,8 @@ class BongoCatSettingsGUI:
             self.widgets['sleep_timeout'].set(behavior.get('sleep_timeout_minutes', 1))
     
             self.widgets['idle_timeout'].set(behavior.get('idle_timeout_seconds', 3.0))
+            if 'paw_mode' in self.widgets:
+                self.widgets['paw_mode'].set(behavior.get('paw_mode', 'groove'))
             
             # Load connection settings
             connection = self.config.get_connection_settings()
@@ -518,6 +529,8 @@ class BongoCatSettingsGUI:
             self.config.set_setting('behavior', 'sleep_timeout_minutes', self.widgets['sleep_timeout'].get())
     
             self.config.set_setting('behavior', 'idle_timeout_seconds', self.widgets['idle_timeout'].get())
+            if 'paw_mode' in self.widgets:
+                self.config.set_setting('behavior', 'paw_mode', self.widgets['paw_mode'].get())
             
             # Apply connection settings
             self.config.set_setting('connection', 'com_port', self.widgets['com_port'].get())

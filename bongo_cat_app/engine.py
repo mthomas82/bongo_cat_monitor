@@ -16,7 +16,9 @@ import psutil
 import datetime
 from typing import Callable, Optional, Dict, Any
 
+from mimic import MimicController
 from port_detect import find_esp32_device, select_port, from_pyserial
+from protocol import idle_milestone_command
 
 class BongoCatEngine:
     """Bongo Cat engine using proven original implementation with configuration support"""
@@ -38,6 +40,7 @@ class BongoCatEngine:
             # sleep_timeout = time to start sleep progression (user-configurable)
             self.sleep_timeout = behavior_settings.get('sleep_timeout_minutes', 1) * 60  # Convert to seconds
             print(f"⏰ Timeouts: Idle={self.idle_timeout}s, Sleep={self.sleep_timeout}s")
+            self.paw_mode = behavior_settings.get("paw_mode", "groove")
             
             # Register for configuration changes
             if hasattr(self.config, 'add_change_callback'):
@@ -47,6 +50,7 @@ class BongoCatEngine:
             self.baudrate = 115200
             self.idle_timeout = 1.0  # Original script value
             self.sleep_timeout = 60  # Default 1 minute sleep timeout when no config
+            self.paw_mode = "groove"
             
         self.serial_conn = None
         self.running = False
@@ -65,6 +69,8 @@ class BongoCatEngine:
         self.idle_start_time = current_time  # Initialize to current time so sleep detection works immediately
         self.sleep_start_time = None  # Track when we entered sleep mode
         self.excitement_sent = False  # Extreme excitement after 10 min idle
+        self.screensaver_sent = False
+        self.mimic = MimicController(mode=getattr(self, "paw_mode", "groove"))
         
         # EXACT ORIGINAL IMPLEMENTATION - Improved WPM calculation with stability optimizations
         self.typing_sessions = deque(maxlen=10)  # Reduced from 20 for faster response
@@ -140,6 +146,10 @@ class BongoCatEngine:
         elif key == "behavior.sleep_timeout_minutes":
             self.sleep_timeout = value * 60  # Convert minutes to seconds
             print(f"🔧 Sleep timeout updated: {value} minutes ({self.sleep_timeout}s)")
+        elif key == "behavior.paw_mode":
+            self.paw_mode = value
+            self.mimic.set_mode(value)
+            print(f"🔧 Paw mode updated: {value} (applied on Arduino apply/restart)")
         
         # NOTE: Display/hardware settings require restart to apply
     
@@ -167,6 +177,7 @@ class BongoCatEngine:
         # Apply behavior settings  
         behavior = self.config.get_behavior_settings()
         self.send_command(f"SLEEP_TIMEOUT:{behavior.get('sleep_timeout_minutes', 5)}")
+        self.send_command(self.mimic.set_mode(behavior.get("paw_mode", "groove"))[0])
         
         # Save settings to Arduino EEPROM
         self.send_command("SAVE_SETTINGS")
@@ -302,7 +313,8 @@ class BongoCatEngine:
         """EXACT ORIGINAL: Simple command sending like the working script"""
         if self.serial_conn and self.serial_conn.is_open:
             try:
-                self.serial_conn.write(f"{command}\n".encode())
+                with self._serial_lock:
+                    self.serial_conn.write(f"{command}\n".encode())
             except Exception as e:
                 print(f"⚠️ Command '{command}' failed: {e}")
     
@@ -531,16 +543,28 @@ class BongoCatEngine:
                     self.typing_active = True
                     self.sleep_start_time = None  # Reset sleep timer when typing resumes
                     self.excitement_sent = False
+                    self.screensaver_sent = False
                     print("⌨️ Typing started - keyboard listener working on main thread!")
                     # Update tray typing status
                     if self.tray:
                         self.tray.update_typing_status(True, self.current_wpm)
+                    self.mimic.on_typing_active()
+
+            for cmd in self.mimic.on_press(key, current_time):
+                self.send_command(cmd)
             
             # NO heavy operations here - everything moved to background thread
                 
         except Exception as e:
             print(f"❌ Keystroke detection error: {e}")
             # Continue processing even if there's an error
+
+    def on_key_release(self, key):
+        try:
+            for cmd in self.mimic.on_release(key, time.time()):
+                self.send_command(cmd)
+        except Exception as e:
+            print(f"❌ Key release error: {e}")
     
     def send_animation_command(self, wpm, force_update=False):
         """Send animation command with improved rate limiting and separate streak handling - EXACT ORIGINAL IMPLEMENTATION"""
@@ -615,7 +639,8 @@ class BongoCatEngine:
                             commands_to_send.append("STREAK_OFF")
                             self.last_streak_state = False
                     else:
-                        commands_to_send.append(f"SPEED:{animation_speed}")
+                        if self.mimic.mode != "mimic":
+                            commands_to_send.append(f"SPEED:{animation_speed}")
                         # Handle streak mode separately
                         if streak_changed:
                             if is_streak:
@@ -626,7 +651,8 @@ class BongoCatEngine:
                     # EXACT ORIGINAL: Simple command sending like the working script
                     if commands_to_send:
                         combined_command = '\n'.join(commands_to_send) + '\n'
-                        self.serial_conn.write(combined_command.encode())
+                        with self._serial_lock:
+                            self.serial_conn.write(combined_command.encode())
                         
                 except serial.SerialTimeoutException:
                     # Non-blocking write timed out - Arduino buffer full, skip this update
@@ -666,6 +692,7 @@ class BongoCatEngine:
                             self.tray.update_typing_status(False, 0)
                     
                     # Send final animation command with WPM = 0 to reset display
+                    self.mimic.on_typing_idle(current_time)
                     self.send_animation_command(0, force_update=True)
                     print(f"💤 Typing stopped - will sleep after {self.sleep_timeout}s")
                 
@@ -674,14 +701,25 @@ class BongoCatEngine:
                 if time_idle >= self.sleep_timeout and self.sleep_start_time is None:
                     # Time to start sleep progression
                     self.sleep_start_time = current_time
-                    if self.serial_conn and self.serial_conn.is_open:
-                        self.serial_conn.write(b"IDLE_START\n")
-                        print(f"😴 Sleep timeout reached ({self.sleep_timeout}s) - starting sleep progression")
+                    self.send_command("IDLE_START")
+                    print(f"😴 Sleep timeout reached ({self.sleep_timeout}s) - starting sleep progression")
 
-                if (current_time - last_keystroke_time) >= 600 and not self.excitement_sent:
+                milestone = idle_milestone_command(
+                    current_time - last_keystroke_time,
+                    self.excitement_sent,
+                    self.screensaver_sent,
+                )
+                if milestone == "EXCITED":
                     self.excitement_sent = True
                     self.send_command("EXCITED")
                     print("Extreme excitement — keyboard idle > 10 minutes")
+                elif milestone == "SCREENSAVER":
+                    self.screensaver_sent = True
+                    self.send_command("SCREENSAVER")
+                    print("Screensaver — keyboard idle > 20 minutes")
+
+                for cmd in self.mimic.poll(current_time):
+                    self.send_command(cmd)
                 
                 # Don't send any more commands when idle
                 return
@@ -797,7 +835,7 @@ class BongoCatEngine:
                 print("Spoof typing onto the CYD with:")
                 print("  python3 tools/cyd_testbench.py --demo")
         try:
-            with keyboard.Listener(on_press=self.on_key_press) as listener:
+            with keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release) as listener:
                 listener.join()
         except KeyboardInterrupt:
             pass
@@ -845,6 +883,8 @@ class BongoCatEngine:
             # Apply behavior settings with delays
             behavior = self.config.get_behavior_settings()
             self.send_command(f"SLEEP_TIMEOUT:{behavior.get('sleep_timeout_minutes', 1)}")
+            time.sleep(0.1)
+            self.send_command(self.mimic.set_mode(behavior.get("paw_mode", "groove"))[0])
             time.sleep(0.5)  # Longer delay before save
             
             # Save settings to Arduino EEPROM
