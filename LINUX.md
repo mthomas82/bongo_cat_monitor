@@ -1,79 +1,187 @@
 # Bongo Cat on Linux
 
-The Cheap Yellow Display firmware is the same on every OS. This file is
-the desktop Python host on Linux.
+The cat on the little screen (the Cheap Yellow Display) is the same on
+Windows, Mac, and Linux. This file is only about the program on a Linux
+computer that watches your typing and talks to that screen over USB.
+
+Linux does not have a double-click starter like the Mac. You will use a
+Terminal window and paste a few commands. You do not need to know Linux
+already. Copy each block as written.
 
 ------------------------------------------------------------------------
-Run the host
+What you need
 
-  python3 -m venv .venv
-  source .venv/bin/activate
-  pip install -r bongo_cat_app/requirements_app.txt
+1. The Bongo Cat firmware already on the board (web flasher or Arduino
+   upload of bongo_cat.ino). This file does not flash the board.
 
-  python3 tools/serial_smoke.py
+2. A USB cable that can carry data. Charge-only cables fail silently.
+
+3. A Linux computer with a normal desktop (the screen you sit in front
+   of). Logging in over SSH from another machine will not see your
+   keystrokes. For that, use the testbench later in this file.
+
+4. This project folder on disk (git clone, or Code → Download ZIP and
+   unzip it).
+
+------------------------------------------------------------------------
+Open a Terminal in the project folder
+
+A Terminal is a text window where you type commands.
+
+- Right-click the project folder → Open in Terminal, or
+- Open Terminal, then type `cd ` (with a space), drag the folder onto
+  the window, and press Enter.
+
+You should see the folder path in the prompt. Commands below assume you
+are in that folder.
+
+------------------------------------------------------------------------
+One-time setup
+
+These three blocks are only needed the first time (or after a fresh
+unzip).
+
+1. Make a private Python sandbox so packages stay in this project:
+
+     python3 -m venv .venv
+     source .venv/bin/activate
+     pip install -r bongo_cat_app/requirements_app.txt
+
+   `venv` is a small isolated Python. `source ... activate` means "use
+   that Python in this Terminal window." If you close the window, open a
+   new one, `cd` back here, and run `source .venv/bin/activate` again
+   before the later commands.
+
+2. Let your user account talk to USB serial devices. Linux hides those
+   from a normal account until you join the `dialout` group:
+
+     sudo usermod -aG dialout $USER
+
+   Type your login password when asked. Then log out of Linux entirely
+   and log back in (closing Terminal is not enough). After that, you
+   can use the USB board without `sudo`.
+
+3. Plug the cat in. Check that the computer sees it:
+
+     python3 tools/serial_smoke.py
+
+   If that prints a port and succeeds, you are ready.
+
+------------------------------------------------------------------------
+Run the host (the program that watches typing)
+
+In the same folder, with the sandbox still active:
+
   python3 bongo_cat_app/main.py --no-tray
 
-Serial
-  Device is usually /dev/ttyUSB0 (CH340/CP2102) or /dev/ttyACM0.
-  You must be in group dialout:
+`--no-tray` skips the small icon in the system tray. Type on this
+computer. The cat should bongo. Words-per-minute prints in the Terminal.
 
-    sudo usermod -aG dialout $USER
-    # log out and back in
+To get the tray icon instead (sprite editor, animation settings):
 
-Real typing needs a graphical session (X11/Wayland). Headless SSH will
-not feed pynput. Use the testbench instead.
+  python3 bongo_cat_app/main.py
 
-Lifetime keys typed are saved at ~/.config/BongoCat/keys_typed.json.
+Leave that window open while you type. Ctrl+C in the Terminal stops it.
 
 ------------------------------------------------------------------------
-Testbench (spoof typing onto the CYD)
+USB names, in plain language
 
-Does not fake OS keystrokes. It sends the same serial commands the host
-would send, so you can watch paws / streak / sleep without typing.
+The board shows up as a device file, usually:
+
+  /dev/ttyUSB0    (common for CH340 / CP2102 USB chips)
+  /dev/ttyACM0    (some other boards)
+
+That path is just Linux's name for "this USB cable." If you have several
+USB serial gadgets, the number might be 1 or 2 instead of 0.
+
+------------------------------------------------------------------------
+If serial_smoke sees no port
+
+- Unplug and replug. Try another cable.
+- In Terminal:
+
+    dmesg | tail
+    ls -l /dev/ttyUSB* /dev/ttyACM*
+
+  `dmesg | tail` shows the last kernel messages (often "ttyUSB0" when
+  you plug in). `ls` lists whether those device names exist.
+- Pass the port yourself if you know it, for example:
+
+    python3 tools/serial_smoke.py --port /dev/ttyUSB0
+
+- If you skipped the logout after `dialout`, the port may exist but
+  refuse to open. Log out and back in.
+
+------------------------------------------------------------------------
+Why typing might not reach the cat
+
+The host reads keystrokes from the graphical desktop (X11 or Wayland:
+those are Linux's names for "the thing that draws windows"). A remote
+SSH session has no desktop, so it cannot feed typing.
+
+If you are on SSH, or you just want to see the cat move without typing,
+use the testbench.
+
+------------------------------------------------------------------------
+Testbench (fake typing onto the screen)
+
+This does not pretend to type into Linux. It sends the same USB messages
+the host would send, so you can watch paws, streak, and sleep.
 
   python3 tools/cyd_testbench.py --dry-run --demo
   python3 tools/cyd_testbench.py --demo
   python3 tools/cyd_testbench.py --wpm 80 --seconds 8
   python3 tools/cyd_testbench.py --port /dev/ttyUSB0 --wpm 20 --seconds 5
 
-Demo phases: idle → slow (15) → normal (35) → fast (55) → streak (80) → idle.
+`--dry-run` prints what it would send and does not need the board.
+`--demo` runs a canned sequence:
 
-Firmware stops typing animation after ~2s without SPEED/STOP, so the
-testbench keepalives every 1s.
+  idle → slow (15 WPM) → normal (35) → fast (55) → streak (80) → idle
 
-------------------------------------------------------------------------
-Paw modes (host tray → Animation, or Settings → Behavior)
-
-Groove: original WPM SPEED loop (default).
-Mimic: one TAP:L/TAP:R per key. Requires this firmware on the CYD.
-Reactions (both modes): REACT:TYPO (backspace burst), REACT:SAVE (Ctrl/Cmd+S),
-REACT:GROOM (short idle fidget).
-20 min keyboard idle: SCREENSAVER (sleeping cat drifts around the display).
+Firmware stops the typing animation after about 2 seconds with no
+SPEED/STOP message, so the testbench pokes the board every 1 second.
 
 ------------------------------------------------------------------------
-If serial_smoke sees no port
+Paw modes
 
-  dmesg | tail
-  ls -l /dev/ttyUSB* /dev/ttyACM*
-  try another cable
-  pass --port explicitly
+From the host tray: Animation, or Settings → Behavior.
+
+Groove (default): paws loop based on words per minute.
+Mimic: one left/right tap per key. Needs this project's firmware on
+the board.
+Reactions (both modes): a burst on backspace (typo), a save reaction on
+Ctrl+S, a short idle fidget (groom).
+After 20 minutes with no keys: screensaver (sleeping cat drifts around
+the display).
 
 ------------------------------------------------------------------------
-Sprite studio (new cat art + screen layout)
+Sprite studio (new cat art and screen layout)
 
-Does not start with the desktop host and is not started by cloning GitHub.
+This is a small local web editor. It does not start with the typing
+host, and cloning GitHub does not start it either.
 
-With the tray (omit --no-tray):
+With the tray (run `main.py` without `--no-tray`):
 
   python3 bongo_cat_app/main.py
   # tray → Sprite editor → Start / Stop / Open in browser
   # or Settings → Sprite editor
 
-Stop from the app kills whatever is on port 8765. Quitting the typing host
-does not stop the editor.
+Stop from the app kills whatever is using port 8765. Quitting the typing
+host does not stop the editor.
 
-From a terminal instead:
+From a Terminal instead:
 
   python3 tools/sprite_studio.py --no-browser
 
-Details: tools/sprite_studio/README.md
+Then open the editor in a browser on this same computer. Details:
+tools/sprite_studio/README.md
+
+------------------------------------------------------------------------
+Lifetime keys typed
+
+Counted while you type. Saved at:
+
+  ~/.config/BongoCat/keys_typed.json
+
+`~` means your home folder (usually /home/yourname). Quitting the host
+or rebooting does not reset the count.
