@@ -6,7 +6,10 @@ computer that watches your typing and talks to that screen over USB.
 
 Linux does not have a double-click starter like the Mac. You will use a
 Terminal window and paste a few commands. You do not need to know Linux
-already. Copy each block as written.
+already.
+
+Paste one command at a time. Press Enter after each one. Do not copy a
+whole group of commands in one paste.
 
 ------------------------------------------------------------------------
 What you need
@@ -38,13 +41,16 @@ are in that folder.
 ------------------------------------------------------------------------
 One-time setup
 
-These blocks are only needed the first time (or after a fresh unzip).
+These commands are only needed the first time (or after a fresh unzip).
+Run them in order, one Enter at a time.
 
 1. Make a private Python sandbox so packages stay in this project:
 
-     python3 -m venv --system-site-packages .venv
-     source .venv/bin/activate
-     pip install -r bongo_cat_app/requirements_app.txt
+        python3 -m venv --system-site-packages .venv
+
+        source .venv/bin/activate
+
+        pip install -r bongo_cat_app/requirements_app.txt
 
    `venv` is a small isolated Python. `source ... activate` means "use
    that Python in this Terminal window." If you close the window, open a
@@ -54,8 +60,9 @@ These blocks are only needed the first time (or after a fresh unzip).
 2. Let your account talk to the USB board (`dialout`) and read the
    keyboard (`input`):
 
-     sudo usermod -aG dialout $USER
-     sudo usermod -aG input $USER
+        sudo usermod -aG dialout $USER
+
+        sudo usermod -aG input $USER
 
    Type your login password when asked (or use the fingerprint reader).
 
@@ -67,7 +74,7 @@ These blocks are only needed the first time (or after a fresh unzip).
 
 3. Plug the cat in. Check that the computer sees it:
 
-     python3 tools/serial_smoke.py
+        python3 tools/serial_smoke.py
 
    If that prints a port and succeeds, you are ready.
 
@@ -78,10 +85,11 @@ Ubuntu's default desktop is Wayland. A normal app is not allowed to
 watch every key the old X11 way, so this program reads the keyboard
 device instead. You do not log out and switch to Xorg.
 
-In the project folder, with the sandbox active:
+In the project folder, run these two, one at a time:
 
-  source .venv/bin/activate
-  sg input -c 'python3 bongo_cat_app/main.py'
+        source .venv/bin/activate
+
+        sg input -c 'python3 bongo_cat_app/main.py'
 
 The flag is a lowercase `-c`. Uppercase `-C` is invalid and `sg` will
 refuse to start.
@@ -96,31 +104,34 @@ The small cat icon in the top bar is optional. Typing works without it.
 
 To get the icon on Ubuntu (one-time):
 
-  sudo apt install gir1.2-ayatanaappindicator3-0.1 python3-gi python3-gi-cairo gnome-shell-extension-appindicator
+        sudo apt install gir1.2-ayatanaappindicator3-0.1 python3-gi python3-gi-cairo gnome-shell-extension-appindicator
 
 Then let this project's Python see those Ubuntu libraries. Open
-`.venv/pyvenv.cfg` and set:
+`.venv/pyvenv.cfg` and set this line (this is not a Terminal command):
 
-  include-system-site-packages = true
+        include-system-site-packages = true
 
 If it currently says `false`, change it to `true`. New sandboxes can
 include that from the start:
 
-  python3 -m venv --system-site-packages .venv
+        python3 -m venv --system-site-packages .venv
 
 Restart the host with `sg input` as usual. Ubuntu may hide the cat
 behind a small arrow on the top bar. If the icon still never appears,
 typing still works. Sprite editor without the icon:
 
-  python3 tools/sprite_studio.py --no-browser
+        python3 tools/sprite_studio.py --no-browser
 
 To skip the tray on purpose:
 
-  sg input -c 'python3 bongo_cat_app/main.py --no-tray'
+        sg input -c 'python3 bongo_cat_app/main.py --no-tray'
 
 If you already logged out once after joining `input`, every new Terminal
-has that permission and you can run `python3 bongo_cat_app/main.py`
-without `sg`. Until then, keep using `sg input -c`.
+has that permission and you can run this without `sg`:
+
+        python3 bongo_cat_app/main.py
+
+Until then, keep using `sg input -c`.
 
 ------------------------------------------------------------------------
 USB names, in plain language
@@ -144,17 +155,21 @@ exited.
 If serial_smoke sees no port
 
 - Unplug and replug. Try another cable.
-- In Terminal:
+- In Terminal, one command at a time:
 
-    dmesg | tail
-    ls -l /dev/ttyUSB* /dev/ttyACM*
+        dmesg | tail
+
+        ls -l /dev/ttyUSB* /dev/ttyACM*
 
   `dmesg | tail` shows the last kernel messages (often "ttyUSB0" when
   you plug in). `ls` lists whether those device names exist. On some
-  laptops `dmesg` needs `sudo dmesg | tail`.
+  laptops `dmesg` needs:
+
+        sudo dmesg | tail
+
 - Pass the port yourself if you know it, for example:
 
-    python3 tools/serial_smoke.py --port /dev/ttyUSB0
+        python3 tools/serial_smoke.py --port /dev/ttyUSB0
 
 - If you skipped the logout after `dialout`, the port may exist but
   refuse to open. Log out and back in.
@@ -179,16 +194,23 @@ This does not pretend to type into Linux. It sends the same USB messages
 the host would send, so you can watch paws, streak, and sleep.
 
 Stop the typing host first (only one program may own the USB port).
+Pick one of the commands below. Paste only that one line.
 
-  python3 tools/cyd_testbench.py --dry-run --demo
-  python3 tools/cyd_testbench.py --demo
-  python3 tools/cyd_testbench.py --wpm 80 --seconds 8
-  python3 tools/cyd_testbench.py --port /dev/ttyUSB0 --wpm 20 --seconds 5
+No board needed (prints what it would send):
 
-`--dry-run` prints what it would send and does not need the board.
-`--demo` runs a canned sequence:
+        python3 tools/cyd_testbench.py --dry-run --demo
 
-  idle → slow (15 WPM) → normal (35) → fast (55) → streak (80) → idle
+Live board, canned sequence (idle → slow → normal → fast → streak → idle):
+
+        python3 tools/cyd_testbench.py --demo
+
+Live board, 80 WPM for 8 seconds:
+
+        python3 tools/cyd_testbench.py --wpm 80 --seconds 8
+
+Live board, if you know the USB name is ttyUSB0:
+
+        python3 tools/cyd_testbench.py --port /dev/ttyUSB0 --wpm 20 --seconds 5
 
 Firmware stops the typing animation after about 2 seconds with no
 SPEED/STOP message, so the testbench pokes the board every 1 second.
@@ -222,7 +244,7 @@ host does not stop the editor.
 
 From a Terminal instead:
 
-  python3 tools/sprite_studio.py --no-browser
+        python3 tools/sprite_studio.py --no-browser
 
 Then open the editor in a browser on this same computer. Details:
 tools/sprite_studio/README.md
