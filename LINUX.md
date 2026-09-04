@@ -38,8 +38,7 @@ are in that folder.
 ------------------------------------------------------------------------
 One-time setup
 
-These three blocks are only needed the first time (or after a fresh
-unzip).
+These blocks are only needed the first time (or after a fresh unzip).
 
 1. Make a private Python sandbox so packages stay in this project:
 
@@ -52,14 +51,19 @@ unzip).
    new one, `cd` back here, and run `source .venv/bin/activate` again
    before the later commands.
 
-2. Let your user account talk to USB serial devices. Linux hides those
-   from a normal account until you join the `dialout` group:
+2. Let your account talk to the USB board (`dialout`) and read the
+   keyboard (`input`):
 
      sudo usermod -aG dialout $USER
+     sudo usermod -aG input $USER
 
-   Type your login password when asked. Then log out of Linux entirely
-   and log back in (closing Terminal is not enough). After that, you
-   can use the USB board without `sudo`.
+   Type your login password when asked (or use the fingerprint reader).
+
+   `dialout` needs a full log out of Linux and back in once (closing
+   Terminal is not enough). After that, USB works without `sudo`.
+
+   `input` does not need a logout if you start the host with `sg input`
+   as shown below.
 
 3. Plug the cat in. Check that the computer sees it:
 
@@ -68,24 +72,38 @@ unzip).
    If that prints a port and succeeds, you are ready.
 
 ------------------------------------------------------------------------
-Run the host (the program that watches typing)
+Start the host (every time)
 
-In the same folder, with the sandbox still active:
+Ubuntu's default desktop is Wayland. A normal app is not allowed to
+watch every key the old X11 way, so this program reads the keyboard
+device instead. You do not log out and switch to Xorg.
 
-  python3 bongo_cat_app/main.py --no-tray
+In the project folder, with the sandbox active:
 
-`--no-tray` skips the small icon in the system tray. Type on this
-computer. The cat should bongo. Words-per-minute prints in the Terminal.
+  source .venv/bin/activate
+  sg input -c 'python3 bongo_cat_app/main.py'
 
-To get the tray icon instead (sprite editor, animation settings):
+The flag is a lowercase `-c`. Uppercase `-C` is invalid and `sg` will
+refuse to start.
 
-  python3 bongo_cat_app/main.py
+Leave that window open. You want a line like `Connected to ... /dev/ttyUSB0`
+(the number may be 1 or 2). Then type anywhere — Discord, a browser, or
+even this Terminal. Success looks like `Typing started`.
 
-If the small cat icon never appears, typing still works. Missing tray
-libraries used to crash the whole program; it now keeps running without
-the icon.
+Ctrl+C in that Terminal stops it.
 
-Leave that window open while you type. Ctrl+C in the Terminal stops it.
+The small cat icon in the task bar may never appear. Typing still works.
+Sprite editor without the icon:
+
+  python3 tools/sprite_studio.py --no-browser
+
+To skip the tray on purpose:
+
+  sg input -c 'python3 bongo_cat_app/main.py --no-tray'
+
+If you already logged out once after joining `input`, every new Terminal
+has that permission and you can run `python3 bongo_cat_app/main.py`
+without `sg`. Until then, keep using `sg input -c`.
 
 ------------------------------------------------------------------------
 USB names, in plain language
@@ -115,46 +133,35 @@ If serial_smoke sees no port
     ls -l /dev/ttyUSB* /dev/ttyACM*
 
   `dmesg | tail` shows the last kernel messages (often "ttyUSB0" when
-  you plug in). `ls` lists whether those device names exist.
+  you plug in). `ls` lists whether those device names exist. On some
+  laptops `dmesg` needs `sudo dmesg | tail`.
 - Pass the port yourself if you know it, for example:
 
     python3 tools/serial_smoke.py --port /dev/ttyUSB0
 
 - If you skipped the logout after `dialout`, the port may exist but
   refuse to open. Log out and back in.
+- Run smoke and the host from the project folder, not from `~` (your
+  home folder), or the script will not be found.
 
 ------------------------------------------------------------------------
-Why typing might not reach the cat
+If the cat does not move when you type
 
-The host reads keystrokes from the graphical desktop (X11 or Wayland:
-those are Linux's names for "the thing that draws windows"). A remote
-SSH session has no desktop, so it cannot feed typing.
-
-Wayland (Ubuntu's default) does not let a normal app watch every key
-the old X11 way. You do not have to log out and switch to Xorg. The
-host can read the keyboard device instead.
-
-One-time:
-
-  sudo usermod -aG input $USER
-  pip install evdev
-
-You do not need to log out of Ubuntu. Start the host so this Terminal
-has the extra permission:
-
-  sg input -c 'python3 bongo_cat_app/main.py'
-
-(Log out once later if you want every new Terminal to already have
-that permission.)
-
-If you are on SSH, or you just want to see the cat move without typing,
-use the testbench.
+- Confirm the host window still says Connected, then that Typing started
+  appears when you press keys.
+- If there is no Connected line, USB is not talking. Ctrl+C the host
+  and use the testbench below.
+- If you started without `sg input -c` on Wayland, keys will not be
+  seen. Stop it and start again with the command in "Start the host".
+- SSH from another machine cannot feed typing. Use the testbench.
 
 ------------------------------------------------------------------------
 Testbench (fake typing onto the screen)
 
 This does not pretend to type into Linux. It sends the same USB messages
 the host would send, so you can watch paws, streak, and sleep.
+
+Stop the typing host first (only one program may own the USB port).
 
   python3 tools/cyd_testbench.py --dry-run --demo
   python3 tools/cyd_testbench.py --demo
@@ -172,7 +179,9 @@ SPEED/STOP message, so the testbench pokes the board every 1 second.
 ------------------------------------------------------------------------
 Paw modes
 
-From the host tray: Animation, or Settings → Behavior.
+From the host tray: Animation, or Settings → Behavior. If there is no
+tray icon, Mimic still needs a settings window or a firmware default;
+Groove is the default.
 
 Groove (default): paws loop based on words per minute.
 Mimic: one left/right tap per key. Needs this project's firmware on
@@ -188,11 +197,8 @@ Sprite studio (new cat art and screen layout)
 This is a small local web editor. It does not start with the typing
 host, and cloning GitHub does not start it either.
 
-With the tray (run `main.py` without `--no-tray`):
-
-  python3 bongo_cat_app/main.py
-  # tray → Sprite editor → Start / Stop / Open in browser
-  # or Settings → Sprite editor
+If the tray icon is present: tray → Sprite editor → Start / Stop /
+Open in browser, or Settings → Sprite editor.
 
 Stop from the app kills whatever is using port 8765. Quitting the typing
 host does not stop the editor.
