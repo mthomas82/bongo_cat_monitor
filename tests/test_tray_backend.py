@@ -47,6 +47,21 @@ class LoadPystrayTests(unittest.TestCase):
         mod = load_pystray(environ=env, importer=importer, loaded_modules={})
         self.assertIsInstance(mod, FakePystray)
 
+    def test_linux_tries_gtk_after_appindicator_fails(self):
+        env = {}
+        calls = []
+
+        def importer(name):
+            calls.append(env.get("PYSTRAY_BACKEND"))
+            if env.get("PYSTRAY_BACKEND") != "gtk":
+                raise ValueError("Namespace AyatanaAppIndicator3 not available")
+            return FakePystray()
+
+        mod = load_pystray(environ=env, importer=importer, loaded_modules={})
+        self.assertIsInstance(mod, FakePystray)
+        self.assertIn("appindicator", calls)
+        self.assertIn("gtk", calls)
+
 
 if __name__ == "__main__":
     unittest.main()

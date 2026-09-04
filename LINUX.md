@@ -42,7 +42,7 @@ These blocks are only needed the first time (or after a fresh unzip).
 
 1. Make a private Python sandbox so packages stay in this project:
 
-     python3 -m venv .venv
+     python3 -m venv --system-site-packages .venv
      source .venv/bin/activate
      pip install -r bongo_cat_app/requirements_app.txt
 
@@ -92,8 +92,25 @@ even this Terminal. Success looks like `Typing started`.
 
 Ctrl+C in that Terminal stops it.
 
-The small cat icon in the task bar may never appear. Typing still works.
-Sprite editor without the icon:
+The small cat icon in the top bar is optional. Typing works without it.
+
+To get the icon on Ubuntu (one-time):
+
+  sudo apt install gir1.2-ayatanaappindicator3-0.1 python3-gi python3-gi-cairo gnome-shell-extension-appindicator
+
+Then let this project's Python see those Ubuntu libraries. Open
+`.venv/pyvenv.cfg` and set:
+
+  include-system-site-packages = true
+
+If it currently says `false`, change it to `true`. New sandboxes can
+include that from the start:
+
+  python3 -m venv --system-site-packages .venv
+
+Restart the host with `sg input` as usual. Ubuntu may hide the cat
+behind a small arrow on the top bar. If the icon still never appears,
+typing still works. Sprite editor without the icon:
 
   python3 tools/sprite_studio.py --no-browser
 
