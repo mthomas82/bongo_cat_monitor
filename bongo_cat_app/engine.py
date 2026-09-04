@@ -20,6 +20,7 @@ from key_count import KeyCounter, is_countable_key
 from mimic import MimicController
 from port_detect import find_esp32_device, select_port, from_pyserial
 from protocol import idle_milestone_command, stats_command
+from serial_link import is_serial_drop_error, port_after_drop, should_attempt_reconnect
 
 class BongoCatEngine:
     """Bongo Cat engine using proven original implementation with configuration support"""
@@ -55,6 +56,7 @@ class BongoCatEngine:
             
         self.serial_conn = None
         self.running = False
+        self.last_reconnect_attempt = None
         
         # EXACT ORIGINAL IMPLEMENTATION - Enhanced animation control with reduced command frequency
         self.last_sent_speed = -1
@@ -219,6 +221,12 @@ class BongoCatEngine:
 
     def connect_serial(self, retries=3):
         """Connect to ESP32 via serial with retry logic - EXACT ORIGINAL IMPLEMENTATION"""
+        if self.port and self.port != "AUTO":
+            devices = self._listed_serial_devices()
+            if self.port not in devices:
+                print(f"{self.port} is gone; scanning for the board again")
+                self.port = "AUTO"
+
         if self.port == 'AUTO' or not self.port:
             detected_port = self.find_esp32_port()
             if detected_port:
@@ -269,6 +277,12 @@ class BongoCatEngine:
                 
             except Exception as e:
                 print(f"Connection failed: {e}")
+                try:
+                    if self.serial_conn:
+                        self.serial_conn.close()
+                except Exception:
+                    pass
+                self.serial_conn = None
                 if platform.system() == "Linux":
                     from linux_permissions import SERIAL_HELP, looks_like_permission_error
                     if looks_like_permission_error(e):
@@ -318,6 +332,42 @@ class BongoCatEngine:
             if self.tray:
                 self.tray.update_connection_status("disconnected")
     
+    def _listed_serial_devices(self):
+        try:
+            return [p.device for p in serial.tools.list_ports.comports()]
+        except Exception:
+            return []
+
+    def _mark_serial_dropped(self):
+        with self._serial_lock:
+            conn = self.serial_conn
+            self.serial_conn = None
+        if conn is None:
+            return
+        try:
+            conn.close()
+        except Exception:
+            pass
+        print("USB serial dropped — will reopen when the cat is plugged back in")
+        self.port = port_after_drop(self.port, self._listed_serial_devices())
+        self.last_reconnect_attempt = time.time()
+        if self.tray:
+            try:
+                self.tray.update_connection_status("disconnected")
+            except Exception:
+                pass
+
+    def ensure_serial(self):
+        if not self.running:
+            return False
+        open_ = bool(self.serial_conn and getattr(self.serial_conn, "is_open", False))
+        now = time.time()
+        if not should_attempt_reconnect(open_, now, self.last_reconnect_attempt):
+            return open_
+        self.last_reconnect_attempt = now
+        print("Trying to reopen USB serial...")
+        return bool(self.connect_serial(retries=1))
+
     def send_command(self, command):
         """EXACT ORIGINAL: Simple command sending like the working script"""
         if self.serial_conn and self.serial_conn.is_open:
@@ -326,6 +376,8 @@ class BongoCatEngine:
                     self.serial_conn.write(f"{command}\n".encode())
             except Exception as e:
                 print(f"⚠️ Command '{command}' failed: {e}")
+                if is_serial_drop_error(e):
+                    self._mark_serial_dropped()
     
     def start_system_monitor(self):
         """Start the dedicated system monitoring thread for real-time CPU/RAM updates"""
@@ -681,6 +733,8 @@ class BongoCatEngine:
                     print("⚠️ Serial buffer full - skipping command")
                 except Exception as e:
                     print(f"❌ Command send error: {e}")
+                    if is_serial_drop_error(e):
+                        self._mark_serial_dropped()
     
     def update_animation(self):
         """Enhanced animation update with proper idle progression and thread safety - EXACT ORIGINAL IMPLEMENTATION"""
@@ -793,6 +847,7 @@ class BongoCatEngine:
         while self.running:
             try:
                 current_time = time.time()
+                self.ensure_serial()
                 
                 self.update_animation()  # Use the new optimized method
                 self.update_system_stats()  # Send system stats (CPU, RAM, WPM) periodically

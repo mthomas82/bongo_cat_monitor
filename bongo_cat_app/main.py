@@ -13,8 +13,9 @@ from config import ConfigManager
 from engine import BongoCatEngine
 try:
     from tray import BongoCatSystemTray
-except ImportError:
+except Exception as e:
     BongoCatSystemTray = None
+    print(f"System tray not available ({e}); continuing without it")
 
 class BongoCatApplication:
     """Main Bongo Cat application with FIXED thread-safe GUI"""

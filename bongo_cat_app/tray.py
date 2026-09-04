@@ -4,9 +4,11 @@ Bongo Cat System Tray Integration
 Provides system tray icon, menu, and background operation
 """
 
-import pystray
-from pystray import MenuItem as item
+from tray_backend import load_pystray
 from PIL import Image, ImageDraw
+
+pystray = load_pystray()
+item = getattr(pystray, "MenuItem", None) if pystray else None
 import threading
 import sys
 import os
@@ -53,6 +55,10 @@ class BongoCatSystemTray:
     
     def create_icon(self):
         """Create the system tray icon"""
+        if pystray is None or item is None:
+            print("System tray backend unavailable; continuing without a tray icon")
+            self.icon = None
+            return
         try:
             # Try to load icon from file first - check multiple formats
             # Support both development and exe paths

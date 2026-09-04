@@ -81,6 +81,10 @@ To get the tray icon instead (sprite editor, animation settings):
 
   python3 bongo_cat_app/main.py
 
+If the small cat icon never appears, typing still works. Missing tray
+libraries used to crash the whole program; it now keeps running without
+the icon.
+
 Leave that window open while you type. Ctrl+C in the Terminal stops it.
 
 ------------------------------------------------------------------------
@@ -93,6 +97,13 @@ The board shows up as a device file, usually:
 
 That path is just Linux's name for "this USB cable." If you have several
 USB serial gadgets, the number might be 1 or 2 instead of 0.
+
+If you unplug the cat while the host is running, the Terminal may print
+Errno 5 / Input/output error. Leave the host running. Plug the board
+back in (the name may change from ttyUSB0 to ttyUSB1). The host scans
+again and reconnects. You should see "Trying to reopen USB serial..."
+then Connected. You do not need to restart unless the host itself
+exited.
 
 ------------------------------------------------------------------------
 If serial_smoke sees no port
