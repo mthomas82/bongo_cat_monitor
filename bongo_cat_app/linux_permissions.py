@@ -16,10 +16,10 @@ Linux serial access
      and make sure you are not using a charge-only cable.
 
 Linux key listening (real typing, not the testbench)
-  pynput needs a graphical session (X11 or Wayland).
+  X11: pynput. Wayland: evdev on /dev/input (not Xorg logout).
   Headless SSH will not see keys — use tools/cyd_testbench.py instead.
-  If keys still fail in a desktop session:
-       sudo usermod -aG input $USER
+  Wayland one-time: sudo usermod -aG input $USER
+  Then: sg input -c 'python3 bongo_cat_app/main.py'
 """
 
 

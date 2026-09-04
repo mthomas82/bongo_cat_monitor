@@ -927,12 +927,16 @@ class BongoCatEngine:
         elif platform.system() == "Linux":
             import os
             if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
-                print("No graphical display — pynput will not see keys.")
+                print("No graphical display — the host will not see keys.")
                 print("Spoof typing onto the CYD with:")
                 print("  python3 tools/cyd_testbench.py --demo")
         try:
-            with keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release) as listener:
-                listener.join()
+            if platform.system() == "Linux":
+                from linux_keys import run_linux_keyboard
+                run_linux_keyboard(self.on_key_press, self.on_key_release)
+            else:
+                with keyboard.Listener(on_press=self.on_key_press, on_release=self.on_key_release) as listener:
+                    listener.join()
         except KeyboardInterrupt:
             pass
         except Exception as exc:
@@ -941,8 +945,10 @@ class BongoCatEngine:
                 from macos_permissions import PERMISSION_HELP
                 print(PERMISSION_HELP)
             elif platform.system() == "Linux":
+                from linux_keys import WAYLAND_HELP
                 from linux_permissions import SERIAL_HELP
                 print(SERIAL_HELP)
+                print(WAYLAND_HELP)
             raise
         
         return True

@@ -130,6 +130,23 @@ The host reads keystrokes from the graphical desktop (X11 or Wayland:
 those are Linux's names for "the thing that draws windows"). A remote
 SSH session has no desktop, so it cannot feed typing.
 
+Wayland (Ubuntu's default) does not let a normal app watch every key
+the old X11 way. You do not have to log out and switch to Xorg. The
+host can read the keyboard device instead.
+
+One-time:
+
+  sudo usermod -aG input $USER
+  pip install evdev
+
+You do not need to log out of Ubuntu. Start the host so this Terminal
+has the extra permission:
+
+  sg input -c 'python3 bongo_cat_app/main.py'
+
+(Log out once later if you want every new Terminal to already have
+that permission.)
+
 If you are on SSH, or you just want to see the cat move without typing,
 use the testbench.
 
