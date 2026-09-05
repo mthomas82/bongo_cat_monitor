@@ -4,6 +4,7 @@
 import importlib
 import os
 import sys
+import threading
 
 LINUX_BACKENDS = ("appindicator", "gtk", "xorg")
 
@@ -54,3 +55,20 @@ def load_pystray(environ=None, importer=None, loaded_modules=None):
         return try_import()
     except Exception:
         return None
+
+
+def start_tray_icon(icon, platform=None, thread_cls=None):
+    """Start pystray so the icon can actually appear.
+
+    Linux AppIndicator/GTK only show an icon if a GLib loop runs.
+    run_detached() does not start that loop. icon.run() does, so Linux
+    runs it on a daemon thread while the keyboard listener keeps the
+    main thread. macOS still needs run_detached().
+    """
+    platform = sys.platform if platform is None else platform
+    thread_cls = threading.Thread if thread_cls is None else thread_cls
+    if str(platform).startswith("linux"):
+        thread_cls(target=icon.run, daemon=True).start()
+        return "run-thread"
+    icon.run_detached()
+    return "run_detached"

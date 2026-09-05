@@ -115,7 +115,7 @@ class BongoCatApplication:
                 print("🔄 System tray available in background")
                 print("🛑 Press Ctrl+C to stop")
             
-            print("✅ System tray started with run_detached()")
+            print("✅ System tray started")
             print("💡 Settings window available from tray menu")
             print("🎯 Starting animation engine on MAIN THREAD for optimal responsiveness...")
             

@@ -4,7 +4,7 @@ Bongo Cat System Tray Integration
 Provides system tray icon, menu, and background operation
 """
 
-from tray_backend import TRAY_HELP, load_pystray
+from tray_backend import TRAY_HELP, load_pystray, start_tray_icon
 from PIL import Image, ImageDraw
 
 pystray = load_pystray()
@@ -47,9 +47,9 @@ class BongoCatSystemTray:
     def start_detached(self):
         """Start system tray using run_detached for proper GUI coexistence"""
         if self.icon:
-            print("🚀 Starting pystray with run_detached()...")
             self.running = True
-            self.icon.run_detached()
+            mode = start_tray_icon(self.icon)
+            print(f"Starting pystray ({mode}, backend={os.environ.get('PYSTRAY_BACKEND')})")
         else:
             print("❌ No tray icon created")
     

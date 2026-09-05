@@ -116,9 +116,10 @@ include that from the start:
 
         python3 -m venv --system-site-packages .venv
 
-Restart the host with `sg input` as usual. Ubuntu may hide the cat
-behind a small arrow on the top bar. If the icon still never appears,
-typing still works. Sprite editor without the icon:
+Restart the host with `sg input` as usual. You want a log line like
+`Starting pystray (run-thread, backend=appindicator)`. Ubuntu may hide
+the cat behind a small arrow on the top bar. If the icon still never
+appears, typing still works. Sprite editor without the icon:
 
         python3 tools/sprite_studio.py --no-browser
 

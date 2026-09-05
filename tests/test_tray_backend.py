@@ -6,7 +6,7 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "bongo_cat_app"))
 
-from tray_backend import load_pystray  # noqa: E402
+from tray_backend import load_pystray, start_tray_icon  # noqa: E402
 
 
 class FakePystray:
@@ -61,6 +61,47 @@ class LoadPystrayTests(unittest.TestCase):
         self.assertIsInstance(mod, FakePystray)
         self.assertIn("appindicator", calls)
         self.assertIn("gtk", calls)
+
+
+class FakeIcon:
+    def __init__(self):
+        self.run_calls = 0
+        self.detached_calls = 0
+
+    def run(self):
+        self.run_calls += 1
+
+    def run_detached(self):
+        self.detached_calls += 1
+
+
+class StartTrayIconTests(unittest.TestCase):
+    def test_linux_runs_icon_on_a_thread_not_detached(self):
+        icon = FakeIcon()
+        started = []
+
+        class FakeThread:
+            def __init__(self, target=None, daemon=None):
+                self.target = target
+                self.daemon = daemon
+
+            def start(self):
+                started.append(self)
+                self.target()
+
+        mode = start_tray_icon(icon, platform="linux", thread_cls=FakeThread)
+        self.assertEqual(mode, "run-thread")
+        self.assertEqual(icon.run_calls, 1)
+        self.assertEqual(icon.detached_calls, 0)
+        self.assertEqual(len(started), 1)
+        self.assertTrue(started[0].daemon)
+
+    def test_macos_uses_run_detached(self):
+        icon = FakeIcon()
+        mode = start_tray_icon(icon, platform="darwin")
+        self.assertEqual(mode, "run_detached")
+        self.assertEqual(icon.run_calls, 0)
+        self.assertEqual(icon.detached_calls, 1)
 
 
 if __name__ == "__main__":
